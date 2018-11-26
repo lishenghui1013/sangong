@@ -1,0 +1,232 @@
+<extend name="Public/base" />
+<block name="main">
+    <script type="text/javascript" src="__PUBLIC__/dataTable/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="__PUBLIC__/css/dataTable.css">
+    <fieldset class="layui-elem-field">
+	
+        <legend>图片列表</legend>
+        <div class="layui-field-box">
+		 
+            <form class="layui-form" id="form-admin-add" action="">
+                <div class="layui-form-item">
+				
+                <div class="layui-input-inline">
+                    <select name="province" class="state" lay-filter="state">
+                        <option value="">请选择省</option>
+						
+                        <option value="{$vo.code}">{$vo.region}</option>
+                       
+                    </select>
+                </div>
+				 <div class="layui-input-inline">
+                     <select name="city" class="state" lay-filter="states">
+                        <option value="">请选择市</option>
+                        
+                    </select>
+                </div>
+                <div class="layui-inline">
+                    <span class="layui-btn sub">查询</span>
+                </div>
+				<div class="layui-inline">
+                    <span class="layui-btn layui-btn-normal api-add"><i class="layui-icon">&#xe608;</i> 新增</span>
+                </div>
+            </div>
+            </form>
+            <table class="layui-table" id="list-admin" lay-even>
+                <thead>
+                <tr>
+                    <th>图片ID</th>
+					<th>图片城市</th>
+                    <th>图片位置</th>
+                    <th>图片</th>
+                    <th>添加时间</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+				
+            </table>
+        </div>
+    </fieldset>
+</block>
+<block name="myScript">
+
+    <script>
+        /**
+         * 格式化时间戳
+         * @param fmt
+         * @returns {*}
+         * @constructor
+         */
+        Date.prototype.Format = function (fmt) {
+            var o = {
+                "M+": this.getMonth() + 1, //月份
+                "d+": this.getDate(), //日
+                "h+": this.getHours(), //小时
+                "m+": this.getMinutes(), //分
+                "s+": this.getSeconds(), //秒
+                "q+": Math.floor((this.getMonth() + 3) / 3), //季度
+                "S": this.getMilliseconds() //毫秒
+            };
+            if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+            for (var k in o)
+                if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+            return fmt;
+        };
+        layui.use('form', function(){
+			//如果有需要到镇的改改就可以实现
+			var form = layui.form(),
+			layer = layui.layer,
+			$ = layui.jquery;
+			var url = " {:U('area')}"; //数据请求地址
+			var province = ""; //编辑需要的省
+			var city = ""; //编辑需要的市
+			//var district = ""; //编辑需要的县/区
+			getJSON(url,$("select[name='province']").closest("div"));
+			form.on('select(state)', function(data){
+				$that = $(data.elem);
+				urls = url+"?pid="+data.value;
+				getJSON(urls,$that.closest("div").next());
+			});
+			function getJSON(urls,even){
+				$.getJSON(urls, function(json){
+					var pid = 0;
+					var name = even.find("select").attr("name");
+					if(name==undefined){
+					return false;
+					}
+					var select = "<select name=\"" + name + "\" lay-filter=\"state\">";
+					select += "<option value=\"0\">请选择 </option>";
+					
+					$(json).each(function(){
+						select += "<option value=\"" + this.code + "\"";
+						
+						select += ">" + this.region + "</option>";
+					});
+					select += "</select>";
+					even.html(select);
+										
+					form.render('select');
+					if(pid != 0){
+						getJSON(url+"?pid="+pid,even.next());
+					}
+				});
+			}
+		});
+		
+        layui.use(['layer', 'form'], function() {
+            $(document).on('click', '.confirm', function () {
+                var ownObj = $(this);
+                layer.confirm(ownObj.attr('data-info'), {
+                    btn: ['确定','取消'] //按钮
+                }, function(){
+                    $.ajax({
+                        type: "POST",
+                        url: ownObj.attr('data-url'),
+                        data: {id:ownObj.attr('data-id')},
+                        success: function(msg){
+                            if( msg.code == 1 ){
+                                location.reload();
+                            }else{
+                                layer.msg(msg.msg, {
+                                    icon: 5,
+                                    shade: [0.6, '#393D49'],
+                                    time:1500
+                                });
+                            }
+                        }
+                    });
+                });
+            });
+            $(document).on('click', '.api-add', function () {
+                var ownObj = $(this);
+                layer.open({
+                    type: 2,
+                    area: ['80%', '80%'],
+                    maxmin: true,
+                    content: '{:U("add")}'
+                });
+            });
+            $(document).on('click', '.edit', function () {
+                var ownObj = $(this);
+                layer.open({
+                    type: 2,
+                    area: ['80%', '80%'],
+                    maxmin: true,
+                    content: ownObj.attr('data-url')+'&id='+ownObj.attr('data-id')
+                });
+            });
+
+            var myFun = function (query) {
+                query = query || '';
+                return $('#list-admin').DataTable({
+                    dom: 'rt<"bottom"ifpl><"clear">',
+                    ordering: false,
+                    autoWidth: false,
+                    searching:false,
+                    serverSide: true,
+                    ajax: {
+                        url:'{:U("ajaxGetIndex")}' + query,
+                        type: 'POST',
+                        dataSrc: function ( json ) {
+						//console.log(json);
+                            if( json.code == 0 ){
+                                parent.layer.msg(json.msg, {
+                                    icon: 5,
+                                    shade: [0.6, '#393D49'],
+                                    time:1500
+                                });
+                            }else{
+                                return json.data;
+                            }
+                        }
+                    },
+                    columnDefs:[
+                      {
+                            "targets":2,
+                            "render": function(data, type, row, meta){
+                             if(data==1){
+                             return data='个人首页';
+                             }
+                              if(data==2){
+                             return data='企业首页';
+                             }
+                            }
+                        },
+					   {
+                            "targets":3,
+                            "render": function(data, type, row, meta){
+                               return data = '<img height="100px" src="__ROOT__/'+data+'" />';
+                            }
+                        },
+                        {
+                            "targets":5,
+                            "render":function(data, type, row){
+                                var returnStr = '';
+                                returnStr += '<span class="layui-btn edit layui-btn-normal" ' +
+                                    'data-id="' + row.id +'" data-url="{:U(\'edit\')}">编辑</span>';
+                                returnStr += '<span class="layui-btn layui-btn-danger confirm" ' +
+                                    'data-id="' + row.id +'" data-info="你确定删除么？" data-url="{:U(\'del\')}">删除</span>';
+                                return returnStr;
+                            }
+                        }
+                    ],
+                    iDisplayLength : 20,
+                    aLengthMenu : [20, 30, 50],
+                    columns: [
+                        {"data": "id"},
+						{"data": "region"},
+                        {"data": "position"},
+                        {"data": "photo" },
+                        {"data": "addtime" },
+                        {"data": null }
+                    ]
+                });
+            };
+            var myTable = myFun();
+            $('.sub').on("click", function(){
+                myTable.destroy();
+                myTable = myFun('&'+ $('#form-admin-add').serialize());
+            });
+        });
+    </script>
+</block>

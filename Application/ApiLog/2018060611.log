@@ -1,0 +1,12 @@
+BuildToken/getAccessToken###5b1745a622534###2018-06-06 11:03:29###[]###null###null######null######{"code":-14,"msg":"\u7f3a\u5c11user-token","data":[]}###null###null###null###null###null
+BuildToken/getAccessToken###5b1745a622534###2018-06-06 11:03:39###[]###null###null######null######{"code":-14,"msg":"\u7f3a\u5c11user-token","data":[]}###null###null###null###null###null
+BuildToken/getAccessToken###5b1745a622534###2018-06-06 11:04:01###[]###null###null######null######{"code":-12,"msg":"\u7f3a\u5c11\u53c2\u6570version","data":[]}###null###null###null###null###null
+BuildToken/getAccessToken###5b1745a622534###2018-06-06 11:05:53###[]###null###null######null######{"code":-12,"msg":"\u7f3a\u5c11\u53c2\u6570version","data":[]}###null###null###null###null###null
+BuildToken/getAccessToken###5b1745a622534###2018-06-06 11:24:21###[]###null###null######null######{"code":-12,"msg":"\u7f3a\u5c11\u53c2\u6570version","data":[]}###null###null###null###null###null
+User/index###5b1754d09398f###2018-06-06 11:30:28###[]###null###null######null######{"code":-996,"msg":"\u7f3a\u5c11\u53c2\u6570access-token","data":[]}###null###null###null###null###null
+User/index###5b1754d09398f###2018-06-06 11:30:49###[]###null###null######null######{"code":-14,"msg":"\u7f3a\u5c11user-token","data":[]}###null###null###null###null###null
+User/index###5b1754d09398f###2018-06-06 11:31:05###[]###null###null######null######{"code":-14,"msg":"\u7f3a\u5c11user-token","data":[]}###null###null###null###null###null
+User/index###5b1754d09398f###2018-06-06 11:31:06###[]###null###null######null######{"code":-14,"msg":"\u7f3a\u5c11user-token","data":[]}###null###null###null###null###null
+User/index###5b1754d09398f###2018-06-06 11:31:06###[]###null###null######null######{"code":-14,"msg":"\u7f3a\u5c11user-token","data":[]}###null###null###null###null###null
+User/index###5b1754d09398f###2018-06-06 11:31:07###[]###null###null######null######{"code":-14,"msg":"\u7f3a\u5c11user-token","data":[]}###null###null###null###null###null
+User/index###5b1754d09398f###2018-06-06 11:32:09###[]###null###null######null######{"code":1,"msg":"\u64cd\u4f5c\u6210\u529f","data":{"username":"690806","password":"796803"}}###[]###null###null###null###null

@@ -1,0 +1,184 @@
+<extend name="Public/base" />
+<block name="main">
+    <fieldset class="layui-elem-field">
+        <legend>图片管理 - {:(isset($detail['id'])?'编辑':'新增')}</legend>
+        <div class="layui-field-box">
+            <form class="layui-form" action="" id="health_form">
+                <if condition="isset($detail['id'])">
+                    <input  type="hidden" name="id" value="{$detail['id']}">
+                </if>
+				<div class="layui-form-item">
+                    <label class="layui-form-label"><span style="color:red">*</span> 城市</label>
+                    <div class="layui-input-inline">
+                    <select name="province" class="state" lay-filter="state">
+                        <option value="">请选择</option> 
+                    </select>
+                    </div>
+				    <div class="layui-input-inline">
+                     <select name="city" class="state" lay-filter="states">
+                        <option value="">请选择</option>
+                        
+                    </select>
+                    </div>
+                </div>
+				<div class="layui-form-item">
+                    <label class="layui-form-label"><span style="color:red">*</span> 位置</label>
+                    <div class="layui-input-inline">
+                        <select name="position" lay-verify="">
+                            
+                            <option value="1">个人首页</option>
+                            <option value="2">企业首页</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">图片</label>
+                    <input type="file" name="photo" accept="image/jpg,image/jpeg,image/png,image/gif" id="file-1" />
+                    <if condition="isset($detail['photo'])">
+                        <img  style="height:100px" src="__ROOT__/{$detail['photo']}" name="photo" id="photos"/>
+						<input type="hidden" name="photo" value="{$detail['photo']}">
+                    </if>
+                </div>
+                <script>
+				layui.use('form', function(){
+			//如果有需要到镇的改改就可以实现
+			var form = layui.form(),
+			layer = layui.layer,
+			$ = layui.jquery;
+			var url = " {:U('area')}"; //数据请求地址
+			var province = "{$detail['province']}"; //编辑需要的省
+			var city = "{$detail['city']}"; //编辑需要的市
+			//var district = ""; //编辑需要的县/区
+			getJSON(url,$("select[name='province']").closest("div"));
+			form.on('select(state)', function(data){
+				$that = $(data.elem);
+				urls = url+"?pid="+data.value;
+				getJSON(urls,$that.closest("div").next());
+			});
+			function getJSON(urls,even){
+				$.getJSON(urls, function(json){
+					var pid = 0;
+					var name = even.find("select").attr("name");
+					if(name==undefined){
+					return false;
+					}
+					var select = "<select name=\"" + name + "\" lay-filter=\"state\">";
+					select += "<option value=\"0\">请选择 </option>";
+					
+					$(json).each(function(){
+						select += "<option value=\"" + this.code + "\"";
+						if(province == this.code || city == this.code){
+						  select += " selected=\"selected\" ";
+						  pid = this.code;
+						}
+						select += ">" + this.region + "</option>";
+					});
+					select += "</select>";
+					even.html(select);
+										
+					form.render('select');
+					if(pid != 0){
+						getJSON(url+"?pid="+pid,even.next());
+					}
+				});
+			}
+		});
+                    //上传图片
+                    $("#file-1").change(function() {
+                        var formData = new FormData($("#health_form")[0]);
+
+                        $.ajax({
+                            url: '{:U("upload")}' ,
+                            type: 'POST',
+                            data: formData,
+                            async: false,
+                            cache: false,
+                            contentType: false,
+                            processData: false,
+                            success: function (returndata) {
+							console.log(returndata);
+                               // alert(returndata);
+                                var img=JSON.parse(returndata);
+                               // alert(img);
+                                var html='<img style="height:100px" src="__ROOT__/'+img+'"  id="photo"/>'+
+								'<input type="hidden" name="photo" value="'+img+'">';
+                                $("#file-1").next('input').remove();
+								$("#file-1").after(html);
+                                
+                               
+                                $("#photos").remove();
+                            },
+                            error: function (returndata) {
+                                alert('上传错误，请刷新页面重试');
+                            }
+                        });
+                    })
+                </script>
+                <div class="layui-form-item">
+                    <div class="layui-input-block">
+
+                        <button class="layui-btn" lay-submit lay-filter="admin-form">立即提交</button>
+                        <button type="reset" class="layui-btn layui-btn-primary">重置</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </fieldset>
+</block>
+
+<block name="myScript">
+
+    <if condition="isset($detail['id'])">
+        <script>
+            layui.use('form', function(){
+                var form = layui.form();
+                form.on('submit(admin-form)', function(data){
+                    $.ajax({
+                        type: "POST",
+                        url: '{:U("edit")}',
+                        data: data.field,
+                        success: function(msg){
+                            if( msg.code == 1 ){
+                                parent.location.reload();
+                            }else{
+                                parent.layer.msg(msg.msg, {
+                                    icon: 5,
+                                    shade: [0.6, '#393D49'],
+                                    time:1500
+                                });
+                            }
+                        }
+                    });
+                    return false;
+                });
+
+            });
+        </script>
+        <else />
+        <script>
+            layui.use('form', function(){
+                var form = layui.form();
+                form.on('submit(admin-form)', function(data){
+                    $.ajax({
+                        type: "POST",
+                        url: '{:U("add")}',
+                        data: data.field,
+                        success: function(msg){
+                            if( msg.code == 1 ){
+                                parent.location.reload();
+                            }else{
+                                parent.layer.msg(msg.msg, {
+                                    icon: 5,
+                                    shade: [0.6, '#393D49'],
+                                    time:1500
+                                });
+                            }
+                        }
+                    });
+                    return false;
+                });
+
+            });
+        </script>
+    </if>
+</block>

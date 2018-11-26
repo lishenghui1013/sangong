@@ -1,0 +1,485 @@
+<?php
+
+namespace Home\Api;
+
+use Admin\Model\ApiAppModel;
+use Home\ORG\ApiLog;
+use Home\ORG\Response;
+use Home\ORG\ReturnCode;
+use Home\ORG\Str;
+
+class Index extends Base {
+	//身份切换
+	public function index($param){
+		$city=$param['city']?$param['city']:130100;
+		$position=$param['position']?$param['position']:1;//1个人 2企业
+		$lunbo=D('ApiPicture')->where(['position'=>$position,'city'=>$city])->field('photo,linkurl')->select();
+        $where=array();
+		$where['r.city']=$city;
+		$where['r.dataflag']=1;
+		$where['r.end_date']=array('egt',date('Y-m-d h:i:s'));
+		if($position==1){
+			$where['recommend']=1;
+			$recommend=D('ApiRecruitment')->alias('r')
+			               ->join("api_areas a on r.area=a.code")
+						   ->join("api_r_paytype p on r.payment_type=p.id")
+			               ->where($where)
+						   ->field('r.id,r.title,r.wage,r.end_date,payment_type,a.region as area,p.type')
+						   ->limit(4)
+						   ->select();
+			$where['hot']=1;
+			$hot=D('ApiRecruitment')->alias('r')
+			               ->where($where)
+						   ->field('r.id,r.title,r.wage')
+						   ->limit(2)
+						   ->select();
+		}
+		if($position==2){
+			$where['recommend']=1;
+			$recommend=D('ApiResume')->alias('r')
+			               ->join("api_areas a on r.area=a.code")
+						   ->join("api_r_paytype p on r.payment_type=p.id")
+			               ->where($where)
+						   ->field('r.rid,r.title,r.wage,r.end_date,payment_type,a.region as area,p.type')
+						   ->limit(4)
+						   ->select();
+			$where['hot']=1;
+			$hot=D('ApiResume')->alias('r')
+			               ->where($where)
+						   ->field('r.rid,r.title,r.wage')
+						   ->limit(2)
+						   ->select();
+		}
+		//Response::debug($where);
+		return array('lunbo'=>$lunbo,'recommend'=>$recommend,'hot'=>$hot);
+	}
+	//热门切换
+	public function hot($param){
+		$city=$param['city']?$param['city']:130100;
+		$position=$param['position']?$param['position']:1;//1个人 2企业
+        $where=array();
+		$where['r.city']=$city;
+		$where['r.dataflag']=1;
+		$where['r.end_date']=array('egt',date('Y-m-d h:i:s'));
+		$where['hot']=1;
+		if($position==1){
+			$count=D('ApiRecruitment')->alias('r')
+			               ->where($where)
+						   ->count();
+			$start=($count<3)?1:mt_rand(1,$count-2);
+			$hot=D('ApiRecruitment')->alias('r')
+			               ->where($where)
+						   ->field('r.title,r.wage')
+						   ->limit($start,2)
+						   ->select();
+		}
+		if($position==2){
+			$hot=D('ApiResume')->alias('r')
+			               ->where($where)
+						   ->field('r.ridr.title,r.wage')
+						   ->limit($start,2)
+						   ->select();
+		}
+		return $hot;
+	}
+	//收藏
+	public function collect($param){
+		$data['userid']=$param['userid'];
+		if(!$data['userid']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		if(!$param['id']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少id');
+		}
+		if(!$param['type']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少type');
+		}
+		$check=D('ApiCollect')
+		                     ->where(['bid'=>$param['id'],'userid'=>$data['userid'],'type'=>$param['type']])
+							 ->count();
+		if($check>0){
+			D('ApiCollect')
+		                     ->where(['bid'=>$param['id'],'userid'=>$data['userid'],'type'=>$param['type']])
+							 ->delete();
+			return array('collect'=>0);
+		}
+		$data['bid']=$param['id'];
+		$data['type']=$param['type'];
+		$data['addtime']=date('Y-m-d H:i:s');
+		$res=D('ApiCollect')->add($data);
+		if(!$res){
+		     Response::error(ReturnCode::EXCEPTION, '收藏失败');	
+		}
+		return array('collect'=>1);
+	}
+	//个人报名
+	public function signup($param){
+		$data['userid']=$param['userid'];
+		if(!$data['userid']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		if(!$param['reid']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少reid');
+		}
+		//是否有默认简历
+		$res=D('ApiResume')->where(['userid'=>$data['userid'],'isdefault'=>1,'dataflag'=>1])->count();
+		if($res<1){//没有简历
+			return array('jianli'=>0);
+		}
+			
+		
+		$check=D('ApiSignup')
+		                     ->where(['re_id'=>$param['reid'],'userid'=>$data['userid']])
+							 ->count();
+		if($check>0){//已报名
+			return array('jianli'=>1,'baoming'=>2);
+		}
+		$data['re_id']=$param['reid'];//职位id
+		$data['addtime']=date('Y-m-d H:i:s');
+		$res=D('ApiSignup')->add($data);
+		if(!$res){
+		     Response::error(ReturnCode::EXCEPTION, '报名失败');	
+		}
+		return array('jianli'=>1,'baoming'=>1);
+	}
+	//企业预约
+	public function appointment($param){
+		$data['userid']=$param['userid'];
+		if(!$data['userid']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		if(!$param['rid']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少rid');
+		}
+		//是否发布招聘信息
+		$res=D('ApiRecruitment')->where(['userid'=>$data['userid'],'isdefault'=>1,'dataflag'=>1])->count();
+		if($res<1){//没有简历
+			return array('jianli'=>0);
+		}
+		$check=D('ApiAppointment')
+		                     ->where(['r_id'=>$param['rid'],'userid'=>$data['userid']])
+							 ->count();
+		if($check>0){//已经预约该简历
+			return array('jianli'=>1,'baoming'=>2);
+		}
+		$data['r_id']=$param['rid'];//简历id
+		$data['addtime']=date('Y-m-d H:i:s');
+		$res=D('ApiAppointment')->add($data);
+		if(!$res){
+		     Response::error(ReturnCode::EXCEPTION, '预约失败');	
+		}
+		//预约成功
+		return array('jianli'=>1,'baoming'=>1);
+	}
+	//我的收藏
+	public function mycollect($param){
+		$userid=$param['userid'];
+		/* $page=$param['page']?$param['page']:1;
+		$pagesize=10; */
+		if(!$userid){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		$type=$param['type'];
+		if(!$type){//1简历  2招聘
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少type');
+		}
+		if($type==1){
+			$list=D('ApiCollect')->alias('a')
+			->join('api_resume as r on a.bid=r.rid')
+			->join('api_areas as c on r.area=c.code')
+			->join("api_r_paytype as p on r.payment_type=p.id")
+			->where(['a.userid'=>$userid,'a.type'=>$type])
+			->field('r.rid as id,r.title,r.payment_type,p.type,r.end_date,r.wage,c.region')
+			//->page($page,$pagesize)
+			->select();
+		}
+		if($type==2){
+			$list=D('ApiCollect')->alias('a')
+			->join('api_recruitment as r on a.bid=r.id')
+			->join('api_areas as c on r.area=c.code  ')
+			->join("api_r_paytype as p on r.payment_type=p.id")
+			->where(['a.userid'=>$userid,'a.type'=>$type])
+			->field('r.id,r.title,r.payment_type,p.type,r.end_date,r.wage,c.region')
+			//->page($page,$pagesize)
+			->select();
+		}
+		
+		return $list;
+	}
+	//我的发布
+	public function myfabu($param){
+		$userid=$param['userid'];
+		$page=$param['page']?$param['page']:1;
+		$pagesize=10;
+		if(!$userid){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		$type=$param['type'];
+		if(!$type){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少type');
+		}
+		if($type==1){//简历
+			$list=D('ApiResume')->alias('r')
+			->join('api_areas as c on r.area=c.code  ')
+			->join("api_r_paytype as p on r.payment_type=p.id")
+			->where(['r.userid'=>$userid])
+			->field('r.rid,r.title,r.payment_type,p.type,r.end_date,r.wage,r.isdefault as status,c.region')
+			->order('r.isdefault desc')
+			->page($page,$pagesize)
+			->select();
+		}
+		if($type==2){//职位
+			$list=D('ApiRecruitment')->alias('r')->join('api_areas as c on r.area=c.code  ')
+			->join("api_r_paytype as p on r.payment_type=p.id")
+			->where(['r.userid'=>$userid])->field('r.id,r.title,r.payment_type,p.type,r.end_date,r.wage,r.status,c.region')
+			->page($page,$pagesize)
+			->select();
+		}
+		
+		return $list;
+	}
+	//预约列表
+	public function appointmentlist($param){
+		$userid=$param['userid'];
+		if(!$userid){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		$type=$param['position'];
+		if(!$type){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少position');
+		}
+		if($type==1){//个人
+			$list=D('ApiAppointment')->alias('a')->join('api_resume rs on a.r_id=rs.rid')
+			->join('api_identity as i on a.userid=i.userid')
+			->join('api_recruitment as r on a.userid=r.userid')
+			->where(['rs.userid'=>$userid])->field('i.realname,r.phone,r.area,r.id')->select();
+		}
+		if($type==2){//企业
+			$list=D('ApiAppointment')->alias('a')->join('api_resume r on a.r_id=r.rid')
+			->join('api_identity as i on r.userid=i.userid')
+			->where(['a.userid'=>$userid])->field('i.realname,r.phone,r.area,r.rid')->select();
+		}
+		foreach($list as &$val){
+			$val['area']=implode('',getParentNames($val['area']));
+		}
+		return $list;
+	}
+	//报名列表
+	public function signuplist($param){
+		$userid=$param['userid'];
+		if(!$userid){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		$type=$param['position'];
+		if(!$type){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少position');
+		}
+		if($type==1){//个人
+			$list=D('ApiSignup')->alias('a')
+			->join('api_recruitment as r on a.re_id=r.id')
+			->join('api_r_paytype as p on r.payment_type=p.id')
+			->where(['a.userid'=>$userid])
+			->field('r.end_date,r.title,r.area,r.wage,r.payment_type,p.type,r.id')->select();
+		}
+		if($type==2){//企业
+			$list=D('ApiSignup')->alias('a')->join('api_recruitment as re on a.re_id=re.id')
+			->join('api_resume as r on a.userid=r.rid')
+			->join('api_identity as i on a.userid=i.userid')
+			->join('api_r_paytype as p on r.payment_type=p.id')
+			->where(['re.userid'=>$userid])
+			->field('r.end_date,i.realname as title,r.wage,r.area,r.payment_type,p.type,r.rid')->select();
+		}
+		foreach($list as &$val){
+			$val['area']=implode('',getParentNames($val['area']));
+		}
+		return $list;
+	}
+	//设置默认简历
+	public function isdefault($param){
+		$userid=$param['userid'];
+		$id=$param['rid'];
+		if(!$userid){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		D('ApiResume')->where(['userid'=>$param['userid']])->save(['isdefault'=>0]);
+		D('ApiResume')->where(['userid'=>$param['userid'],'rid'=>$id])->save(['isdefault'=>1]);
+		return array('msg'=>'设置成功');
+	}
+	//删除简历
+	public function delresume($param){
+		$userid=$param['userid'];
+		$id=$param['rid'];
+		if(!$userid){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		$res=D('ApiResume')->where(['userid'=>$param['userid'],'rid'=>$id,'isdefault'=>1])->count();
+		//Response::debug($res);
+		D('ApiResume')->where(['userid'=>$param['userid'],'rid'=>$id])->delete();
+		if($res>0){
+			$id=D('ApiResume')->where(['userid'=>$param['userid']])->order('rid desc')->find();
+			D('ApiResume')->where(['userid'=>$param['userid'],'rid'=>$id['rid']])->save(['isdefault'=>1]);
+		}
+		
+		return array('msg'=>'删除简历');
+	}
+	//个人认证
+	public function person($param){
+		$data=$param;
+		if(!$data['userid']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		$check=D('ApiIdentity')->where(array('userid'=>$data['userid'],'type'=>1))->find();
+		if(!empty($check)){
+			Response::error(ReturnCode::DATA_EXISTS, '已认证');
+		}
+		$data['type']=1;
+		$data['addtime']=date("Y-m-d h:i:s");
+		D('ApiIdentity')->add($data);
+		return array('msg'=>'认证成功');
+	}
+	//公司认证
+	public function company($param){
+		$data=$param;
+		if(!$data['userid']){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		$check=D('ApiIdentity')->where(array('userid'=>$data['userid'],'type'=>2))->find();
+		if(!empty($check)){
+			Response::error(ReturnCode::DATA_EXISTS, '已认证');
+		}
+		$data['type']=2;
+		$data['addtime']=date("Y-m-d h:i:s");
+		D('ApiIdentity')->add($data);
+		return array('msg'=>'认证成功');
+	}
+	//图片上传
+    public function upload(){
+        /*  $file = request()->file('file');
+        if ($file) {
+            $info = $file->move('public/upload/weixin/');
+            if ($info) {
+                $file = $info->getSaveName();
+                $res = array('url'=>'public/upload/weixin'.$file);
+                return $res;
+            }
+        } */
+		if (!empty($_FILES)) {
+            $upload = new \Think\Upload();   // 实例化上传类
+            $upload->maxSize   =     3145728 ;    // 设置附件上传大小
+            $upload->exts      =     array('jpg', 'gif', 'png', 'jpeg'); // 设置附件上传类型
+            $upload->rootPath  =     THINK_PATH;          // 设置附件上传根目录
+            $upload->savePath  =     '../Public/';    // 设置附件上传（子）目录
+            $upload->subName   =     'uploads/company/';  //子文件夹
+            $upload->saveName  =     date('Ymdhis');     //文件名
+            $upload->replace   =     true;  //同名文件是否覆盖
+            // 上传文件
+            $images   =   $upload->upload();
+            //return $images;
+            //判断是否有图
+            if($images){
+                $info= $images['img']['savepath'].$images['img']['savename'];
+                $data['headphoto']=$info;
+                //Response::debug($info);
+                $res = D('api_users')->where(array('id' => $uid))->save($data);
+                //Response::debug($res);
+                if( $res === false ){
+                    return array('state' => "fail");
+                }else{
+                    return array('state' => "succeess");
+
+                }
+            }
+            else{
+                $a=$upload->getError();//获取失败信息
+                return $a;
+            }
+        }
+        else
+        {
+            return array('state' => "fail");
+        }
+    }
+	/*
+     * 保存base64文件
+     * $img    string    base64类型的文件
+     * $type   string    保存的文件类型
+     *      app_user_head_img   用户头像
+     *
+     *
+     */
+    public function saveImg_base64($img = null , $type = null)
+    {
+        //获取保存图片配置
+        $imgConfig_savePath = C("img_save.save_path");
+        $imgConfig_size     = C("img_save.size");
+        $saveFlag = false;
+//        dump($imgConfig_savePath[$type]);
+//        dump($imgConfig_size);
+
+        if (preg_match('/^(data:\s*image\/(\w+);base64,)/', $img, $result) && $imgConfig_savePath[$type])
+        {
+
+            $img_ext                = $result[2]; //图片后缀
+            $img_header             = $result[1];//图片头信息
+            $new_file_name          = date('Ymd').'/'.uniqid().'.'.$img_ext;
+            $origin_img_path        = '';//原图的保存路径
+            $origin_img_save_flag   = true;//
+            foreach($imgConfig_savePath[$type] as $k => $v)
+            {
+
+                if(!is_dir($v.date('Ymd')))
+                {
+                    mkdir($v.date('Ymd'),0777,true);
+                }
+
+                if ($k == 'origin')
+                {
+                    //先保存一份原图,然后其他尺寸的保存直接调用原图路径origin_img_path.
+                    $origin_res = file_put_contents($v.$new_file_name, base64_decode(str_replace($img_header, '', $img)));
+                    if (!$origin_res)
+                    {
+                        $origin_img_save_flag = false;
+                        break;
+                    }
+                    else
+                    {
+                        $saveFlag = $new_file_name;
+                        $origin_img_path = $v.$new_file_name;
+                        $this->THINK_IMAGE->open($origin_img_path);
+                    }
+                }
+                else
+                {
+                    if ($origin_img_save_flag)
+                    {
+                        $width = $imgConfig_size[$type][$k]['w'];
+                        $height = $imgConfig_size[$type][$k]['h'];
+                        $this->THINK_IMAGE->thumb($width, $height,3)->save($v.$new_file_name);
+                    }
+
+                }
+            }
+
+        }
+        return $saveFlag;
+    }
+	//个人中心获取个人姓名
+	public function getusername($param){
+		$position=$param['position'];
+	    $userid=$param['userid'];
+		if(!$userid){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+		}
+		if(!$position){
+			Response::error(ReturnCode::EMPTY_PARAMS, '缺少position');
+		}
+		
+		$username=D('ApiIdentity')->field('realname')->where(['type'=>$position,'userid'=>$userid])->find();
+		if(empty($username)){
+			return array();
+		}
+		return $username;
+	}
+	
+	
+}
