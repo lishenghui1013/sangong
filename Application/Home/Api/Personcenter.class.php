@@ -445,6 +445,7 @@ class Personcenter extends Base {
                 }
 
                 if ($k == 'origin')
+
                 {
                     //先保存一份原图,然后其他尺寸的保存直接调用原图路径origin_img_path.
                     $origin_res = file_put_contents($v.$new_file_name, base64_decode(str_replace($img_header, '', $img)));
