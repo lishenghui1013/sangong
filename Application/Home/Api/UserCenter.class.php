@@ -36,6 +36,89 @@ class UserCenter extends Base {
         }
         return $user_info;
 	}
+    /**
+     * 我的相册添加照片
+     * @author: 李胜辉
+     * @time: 2018/12/01 11:34
+     *
+     */
+    public function addPhotos($param){
+        $identity_type = D('api_identity')->where(array('id'=>$param['identity_id']))->getField('type');
+        if($identity_type==1){
+            $path['file_path'] = 'uploads/users/photos';
+
+        }else{
+            $path['file_path'] = 'uploads/company/photos';
+        }
+        if($_FILES){
+            $param['pic']= $this->upload($path);
+        }
+        $data = $param;
+        $data['add_time']= date('Y-m-d H:i:s',time());
+        $res = D('api_users_photos')->add($data);
+        if($res){
+            return array('return_status'=>'success');
+        }else{
+            return array('return_status'=>'fail');
+        }
+    }
+    /**
+     * 我的相册删除照片
+     * @author: 李胜辉
+     * @time: 2018/12/01 11:34
+     *
+     */
+    public function deletePhotos($param){
+        $id = $param['id'];//图片id
+        $res = D('api_users_photos')->where(array('id'=>$id))->delete();
+        if($res){
+            return array('return_status'=>'success');
+        }else{
+            return array('return_status'=>'fail');
+        }
+    }
+    /**
+     * 我的相册列表
+     * @author: 李胜辉
+     * @time: 2018/12/01 11:34
+     *
+     */
+    public function photosList($param){
+        $pagenum = $param['pagenum'] ? $param['pagenum'] : 1;//当前页
+        $limit = $param['limit'] ? $param['limit'] : 9;//每页显示条数
+        $start = ($pagenum - 1) * $limit;
+        $identity_id = $param['identity_id']?$param['identity_id']:'';//用户身份id
+        $where = array();
+        if($identity_id!=''){
+            $where['identity_id'] = $identity_id;
+        }
+        $res = D('api_users_photos')->field('id,identity_id,title,pic,add_time')->where($where)->limit($start,$limit)->select();
+        if ($res) {
+            $res['return_status'] = 'success';//success:成功;fail:失败
+            return $res;
+        } else {
+            $res['return_status'] = 'fail';//success:成功;fail:失败
+            return $res;
+        }
+    }
+
+    /**
+     * 意见反馈
+     * @author: 李胜辉
+     * @time: 2018/12/01 11:34
+     * @param:int userid 用户认证身份id
+     * @param: string content 内容
+     */
+    public function ideaFeedback($param){
+        $data = $param;
+        $data['addtime']= date('Y-m-d H:i:s',time());
+        $res = D('api_yijian')->add($data);
+        if($res){
+            return array('return_status'=>'success');
+        }else{
+            return array('return_status'=>'fail');
+        }
+    }
 
 	
 }
