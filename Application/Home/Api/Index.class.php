@@ -109,6 +109,7 @@ class Index extends Base {
 		$url = "http://apis.map.qq.com/ws/geocoder/v1/?location=".$lat.",".$lng."&key=D2ABZ-A5YK5-PNII5-QSOKN-6E4UK-CUF7V&get_poi=1";
         $res = file_get_contents($url);
         $resArr = json_decode($res, true);
+        print_r($resArr);exit;
 		$city=substr($resArr['result']['ad_info']['city_code'],3,6);
 		$location=$resArr['result']['pois'][0]['title'];
         return array('city'=>$city,'location'=>$location);

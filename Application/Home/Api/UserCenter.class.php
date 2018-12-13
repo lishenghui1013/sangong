@@ -12,7 +12,7 @@ use Home\ORG\ApiLog;
 use Home\ORG\Response;
 use Home\ORG\ReturnCode;
 use Home\ORG\Str;
-
+use Home\Api\Common;
 class UserCenter extends Base
 {
     /**
@@ -179,6 +179,11 @@ class UserCenter extends Base
         $data['worked_years'] = $now - $min;//工作经验年限
         $is_have = D('api_resume')->where(array('userid' => $data['userid'], 'isdefault' => 1))->getField('rid');
         $data['isdefault'] = $is_have ? 2 : 1;
+        $common = new Common();
+        $arr_area = $common->location(array('lng'=>$data['lng'],'lat'=>$data['lat']));
+        $data['province'] = $arr_area['province'];
+        $data['city'] = $arr_area['city'];
+        $data['area'] = $arr_area['area'];
         $res = D('api_resume')->add($data);
         if ($res) {
             $records = array();
