@@ -211,6 +211,86 @@ class UserCenter extends Base
             Response::error(-1, '发布失败!');
         }
     }
+    /**
+     * 求职信息列表
+     * @author: 李胜辉
+     * @time: 2018/12/13 10:34
+     */
+    public function resumeList($param)
+    {
+        $pagenum = $param['pagenum'] ? $param['pagenum'] : 1;//当前页
+        $limit = $param['limit'] ? $param['limit'] : 10;//每页显示条数
+        $start = ($pagenum - 1) * $limit;
+        $position_id = $param['position_id'] ? $param['position_id'] : '';//职位id
+        $area = $param['area'] ? $param['area'] : '';//区县编码
+        $sort = $param['sort'] ? $param['sort'] : '';//排序(1:日薪从高到低;2:月薪从高到低;3:距离;4:发布时间)
+        $city_lat = $param['lat'] ? $param['lat'] : '';//纬度
+        $city_lng = $param['lng'] ? $param['lng'] : '';//经度
+        $where = array();
+        $where ['r.status'] = 1;
+        $where ['r.dataflag'] = 1;
+        if ($position_id != '') {
+            $where['r.position_id'] = $position_id;
+        }
+        if ($area != '') {
+            $where['r.area'] = $area;
+        }
+        $str_sort = 'i.is_deposit,r.worked_years desc';
+        if ($sort != '') {
+            switch ($sort) {
+                case '1'://日薪从高到低
+                    $str_sort = 'r.wage desc';
+                    $where['r.payment_type'] = array('lt',2);
+                    break;
+                case '2'://月薪从高到低
+                    $str_sort = 'r.wage desc';
+                    $where['r.payment_type'] = array('gt',1);
+                    break;
+                case '3'://距离
+                    $str_sort = 'ACOS(SIN(('.$city_lat.' * 3.1415) / 180 ) *SIN((r.lat * 3.1415) / 180 ) +COS(('.$city_lat.' * 3.1415) / 180 ) * COS((r.lat * 3.1415) / 180 ) *COS(('.$city_lng.' * 3.1415) / 180 - (r.lng * 3.1415) / 180 ) ) * 6380  asc';
+                    break;
+                case '4'://发布时间
+                    $str_sort = 'r.addtime desc';
+                    break;
+                default :
+                    $str_sort = 'i.is_deposit,r.worked_years';
+                    break;
+            }
+        }else{
+            $list = D('api_resume as r')->join('left join api_areas as a on a.code=r.area')->join('left join api_identity as i on i.userid=r.userid')->field('r.rid as id,r.title,r.wage,r.payment_type,r.worked_years,r.sex,r.age,r.education,r.addtime,a.region,i.is_deposit')->where($where)->limit($start, $limit)->order($str_sort)->select();
+        }
+        if ($list) {
+            foreach ($list as $key => $value) {
+                if ($value['is_deposit'] == '1') {
+                    $list[$key]['approve'] = 'Y';//是否认证
+                } else {
+                    $list[$key]['approve'] = 'N';
+                }
+                //发布时间
+                $list[$key]['addtime'] = date('Y-m-d',$value['addtime']);
+                //日结/月结
+                switch ($value['payment_type']) {
+                    case '0':
+                    case '1':
+                        $list[$key]['payment'] = '日结';//日结
+                        break;
+                    case '2':
+                    case '3':
+                        $list[$key]['payment'] = '月结';//月结
+                        break;
+                    default :
+                        $list[$key]['payment'] = '未知';//未知
+                        break;
+                }
+
+            }
+            unset($key, $value);
+            Response::success($list);
+        } else {
+            Response::error(-1, '暂无数据');
+        }
+
+    }
 
 
 }
