@@ -13,6 +13,7 @@ use Home\ORG\Response;
 use Home\ORG\ReturnCode;
 use Home\ORG\Str;
 use Home\Api\Common;
+
 class UserCenter extends Base
 {
     /**
@@ -24,16 +25,16 @@ class UserCenter extends Base
 
     public function getUserInfo($param)
     {
-        $position = $param['position'];
-        $userid = $param['userid'];
+        $identity = $param['identity'];//身份(1个人 2企业)
+        $userid = $param['userid'];//用户id
         if (!$userid) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
-        if (!$position) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少position');
+        if (!$identity) {
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
 
-        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.id=i.userid')->join('left join api_resume as r on r.userid=i.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('i.id,i.realname,u.identity,u.id as uid,p.position_name,u.userphoto')->where(['i.type' => $position, 'i.userid' => $userid])->find();
+        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_resume as r on r.userid=i.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,p.position_name,u.userphoto')->where(['i.type' => $identity, 'i.userid' => $userid])->find();
         if (empty($user_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -180,7 +181,7 @@ class UserCenter extends Base
         $is_have = D('api_resume')->where(array('userid' => $data['userid'], 'isdefault' => 1))->getField('rid');
         $data['isdefault'] = $is_have ? 2 : 1;
         $common = new Common();
-        $arr_area = $common->location(array('lng'=>$data['lng'],'lat'=>$data['lat']));
+        $arr_area = $common->location(array('lng' => $data['lng'], 'lat' => $data['lat']));
         $data['province'] = $arr_area['province'];
         $data['city'] = $arr_area['city'];
         $data['area'] = $arr_area['area'];
@@ -211,6 +212,7 @@ class UserCenter extends Base
             Response::error(-1, '发布失败!');
         }
     }
+
     /**
      * 求职信息列表
      * @author: 李胜辉
@@ -226,9 +228,13 @@ class UserCenter extends Base
         $sort = $param['sort'] ? $param['sort'] : '';//排序(1:日薪从高到低;2:月薪从高到低;3:距离;4:发布时间)
         $city_lat = $param['lat'] ? $param['lat'] : '';//纬度
         $city_lng = $param['lng'] ? $param['lng'] : '';//经度
+        $city = $param['city']?'':'';//城市编号
         $where = array();
         $where ['r.status'] = 1;
         $where ['r.dataflag'] = 1;
+        if ($city != '') {
+            $where['city'] = $city;
+        }
         if ($position_id != '') {
             $where['r.position_id'] = $position_id;
         }
@@ -240,14 +246,15 @@ class UserCenter extends Base
             switch ($sort) {
                 case '1'://日薪从高到低
                     $str_sort = 'r.wage desc';
-                    $where['r.payment_type'] = array('lt',2);
+                    $where['r.payment_type'] = array('lt', 2);
+
                     break;
                 case '2'://月薪从高到低
                     $str_sort = 'r.wage desc';
-                    $where['r.payment_type'] = array('gt',1);
+                    $where['r.payment_type'] = array('gt', 1);
                     break;
                 case '3'://距离
-                    $str_sort = 'ACOS(SIN(('.$city_lat.' * 3.1415) / 180 ) *SIN((r.lat * 3.1415) / 180 ) +COS(('.$city_lat.' * 3.1415) / 180 ) * COS((r.lat * 3.1415) / 180 ) *COS(('.$city_lng.' * 3.1415) / 180 - (r.lng * 3.1415) / 180 ) ) * 6380  asc';
+                    $str_sort = 'ACOS(SIN((' . $city_lat . ' * 3.1415) / 180 ) *SIN((r.lat * 3.1415) / 180 ) +COS((' . $city_lat . ' * 3.1415) / 180 ) * COS((r.lat * 3.1415) / 180 ) *COS((' . $city_lng . ' * 3.1415) / 180 - (r.lng * 3.1415) / 180 ) ) * 6380  asc';
                     break;
                 case '4'://发布时间
                     $str_sort = 'r.addtime desc';
@@ -256,9 +263,8 @@ class UserCenter extends Base
                     $str_sort = 'i.is_deposit,r.worked_years';
                     break;
             }
-        }else{
-            $list = D('api_resume as r')->join('left join api_areas as a on a.code=r.area')->join('left join api_identity as i on i.userid=r.userid')->field('r.rid as id,r.title,r.wage,r.payment_type,r.worked_years,r.sex,r.age,r.education,r.addtime,a.region,i.is_deposit')->where($where)->limit($start, $limit)->order($str_sort)->select();
         }
+        $list = D('api_resume as r')->join('left join api_areas as a on a.code=r.area')->join('left join api_identity as i on i.userid=r.userid')->field('r.rid as id,r.title,r.wage,r.payment_type,r.worked_years,r.sex,r.age,r.education,r.addtime,a.region,i.is_deposit')->where($where)->limit($start, $limit)->order($str_sort)->select();
         if ($list) {
             foreach ($list as $key => $value) {
                 if ($value['is_deposit'] == '1') {
@@ -267,7 +273,7 @@ class UserCenter extends Base
                     $list[$key]['approve'] = 'N';
                 }
                 //发布时间
-                $list[$key]['addtime'] = date('Y-m-d',$value['addtime']);
+                $list[$key]['addtime'] = date('Y-m-d', $value['addtime']);
                 //日结/月结
                 switch ($value['payment_type']) {
                     case '0':
@@ -292,5 +298,29 @@ class UserCenter extends Base
 
     }
 
+    /**
+     * 简历详情页
+     * @author: 李胜辉
+     * @time: 2018/11/30 11:34
+     *
+     */
+
+    public function resumeDetail($param)
+    {
+        $id = $param['id'];//简历id
+        if (!$id) {
+            Response::error(-2, '缺少参数');
+        }
+        $resume_info = D('api_resume as r')->join('left join api_users as u on u.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.rid as id,r.userid,r.user_name,r.age,r.sex,r.education,p.position_name,r.title,r.phone,r.wage,r.worktime_description,r.payment_type,r.worked_years,r.read_num,r.description,r.addtime,r.address,u.userphoto')->where(['r.rid' => $id])->find();
+        if (empty($resume_info)) {
+            Response::error(-1, '暂无数据');
+        }
+        $work_records = D('api_work_records')->where(array('resume_id' => $resume_info['id']))->select();
+        $resume_info['work_records'] = json_encode($work_records);
+        $description = explode(';', $resume_info['description']);
+        $resume_info['description'] = json_encode($description);
+        $resume_info['addtime'] = date('Y-m-d', $resume_info['addtime']);
+        Response::success($resume_info);
+    }
 
 }
