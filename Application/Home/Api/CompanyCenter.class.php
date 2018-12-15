@@ -25,35 +25,45 @@ class CompanyCenter extends Base
 
     public function getUserInfo($param)
     {
-        $identity = $param['identity'];//身份(1个人 2企业)
         $userid = $param['userid'];//用户id
         if (!$userid) {
             Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
-        if (!$identity) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
-        }
 
-        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.id=i.userid')->join('left join api_company_info as c on c.identity_id=i.id')->join('left join api_industry as in on in.id=c.industry_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,u.userphoto,in.industry_name,c.logo')->where(['i.type' => $identity, 'i.userid' => $userid])->find();
+        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as c on c.identity_id=i.id')->join('left join api_industry as d on d.id=c.industry_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,u.userphoto,d.industry_name,c.logo')->where(['i.type' => 2, 'i.userid' => $userid])->find();
         if (empty($user_info)) {
             Response::error(-1, '暂无数据');
         }
         Response::success($user_info);
     }
 //简介,  行业列表
+    /**
+     * 行业列表
+     * @author: 李胜辉
+     * @time: 2018/12/15 11:34
+     *
+     */
 
+    public function industryList()
+    {
+        $list = D('api_industry')->field('id,industry_name')->select();
+        if (empty($list)) {
+            Response::error(-1, '暂无数据');
+        }
+        Response::success($list);
+    }
     /**
      * 添加公司信息
      * @author: 李胜辉
      * @time: 2018/12/01 11:34
-     * @param:int identity_id 用户认证身份id
+     * @param:int userid 用户id
      * @param: string intro 公司简介
      * @param: int industry_id 行业id
      * @param: string logo 公司logo
      * @param: string phone 公司电话
      * @param: string address 公司地址
-     * @param: string dis_info 优惠信息
-     * @param: string item_info 服务项目
+     * @param: string dis_info 优惠信息(json串)
+     * @param: string item_info 服务项目(json串)
      */
     public function addCompanyInfo($param)
     {
@@ -64,12 +74,12 @@ class CompanyCenter extends Base
         $com_data['intro'] = $param['intro'];
         $com_data['industry_id'] = $param['industry_id'];
         $com_data['logo'] = $param['logo'];
-        $com_data['intro'] = $param['phone'];
+        $com_data['phone'] = $param['phone'];
         $com_data['address'] = $param['address'];
         $com_data['add_time'] = date('Y-m-d H:i:s', time());
         $res = D('api_company_info')->add($com_data);
         //添加优惠信息记录
-        $dis_info = $param['dis_info'];
+        $dis_info = htmlspecialchars_decode($param['dis_info'], ENT_QUOTES);
         $dis_data = json_decode($dis_info,true);
         $time = date('Y-m-d H:i:s', time());
         if($dis_data){
@@ -78,14 +88,9 @@ class CompanyCenter extends Base
             }
             unset($key,$value);
         }
-        /*$dis_data['identity_id'] = $param['identity_id'];
-        $dis_data['title'] = $param['title'];
-        $dis_data['content'] = $param['content'];
-        $dis_data['pic'] = $param['pic'];
-        $dis_data['add_time'] = date('Y-m-d H:i:s', time());*/
         $dis_res = D('api_company_discounts')->addAll($dis_data);
         //添加服务项目
-        $item_info = $param['item_info'];
+        $item_info = htmlspecialchars_decode($param['item_info'], ENT_QUOTES);
         $item_data = json_decode($item_info,true);
         if($item_data){
             foreach($item_data as $key=>$value){
@@ -281,7 +286,7 @@ class CompanyCenter extends Base
     public function companyDetail($param)
     {
         $id = $param['id'];//公司id
-        $res = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->join('left join api_industry as d on d.id=c.industry_id')->field('c.intro,c.id,c.identity_id,c.industry_id,c.logo,c.phone,c.address,i.realname,i.is_deposit,d.industry_name')->where(array('userid' => $id,'type'=>2))->find();
+        $res = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->join('left join api_industry as d on d.id=c.industry_id')->field('c.intro,c.id,c.identity_id,c.industry_id,c.logo,c.phone,c.address,i.realname,i.is_deposit,d.industry_name')->where(array('c.id' => $id))->find();
         if ($res) {
             Response::success($res);
         } else {
@@ -300,7 +305,7 @@ class CompanyCenter extends Base
         $limit = $param['limit'] ? $param['limit'] : 10;//每页显示条数
         $start = ($pagenum - 1) * $limit;
         $id = $param['id'];//公司id
-        $identiry_id = D('api_identity')->where(array('userid'=>$id,'type'=>2))->getField('id');
+        $identiry_id = D('api_company_info')->where(array('id'=>$id))->getField('identity_id');
         $res = D('api_company_item')->field('id,item_name,pic')->where(array('identity_id'=>$identiry_id))->limit($start,$limit)->select();
         if ($res) {
             Response::success($res);
@@ -323,11 +328,11 @@ class CompanyCenter extends Base
         $where = array();
         $total = D('api_company_item')->where($where)->count();
         if($id!=''){
-            $identiry_id = D('api_identity')->where(array('userid'=>$id,'type'=>2))->getField('id');
+            $identiry_id = D('api_company_info')->where(array('id'=>$id))->getField('identity_id');
             $where['c.identity_id'] = $identiry_id;
             $limit = $total;
         }
-        $res = D('api_company_item as c')->join('left join api_identity as i on i.id=c.identity_id')->field('c.id,c.identity_id,c.title,c.content,c.pic,c.add_time,i.realname,i.userid')->where($where)->limit($start,$limit)->select();
+        $res = D('api_company_discounts as c')->join('left join api_identity as i on i.id=c.identity_id')->field('c.id,c.identity_id,c.title,c.content,c.pic,c.add_time,i.realname,i.userid')->where($where)->limit($start,$limit)->select();
         if ($res) {
             Response::success($res);
         } else {

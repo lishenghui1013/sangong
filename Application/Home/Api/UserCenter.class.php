@@ -25,16 +25,11 @@ class UserCenter extends Base
 
     public function getUserInfo($param)
     {
-        $identity = $param['identity'];//身份(1个人 2企业)
         $userid = $param['userid'];//用户id
         if (!$userid) {
             Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
-        if (!$identity) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
-        }
-
-        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_resume as r on r.userid=i.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,p.position_name,u.userphoto')->where(['i.type' => $identity, 'i.userid' => $userid])->find();
+        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_resume as r on r.userid=i.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,p.position_name,u.userphoto')->where(['i.type' => 1, 'i.userid' => $userid])->find();
         if (empty($user_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -42,7 +37,7 @@ class UserCenter extends Base
     }
 
     /**
-     * 我的相册添加照片
+     * 我的相册添加照片(暂不考虑)
      * @author: 李胜辉
      * @time: 2018/12/01 11:34
      *
@@ -70,7 +65,7 @@ class UserCenter extends Base
     }
 
     /**
-     * 我的相册删除照片
+     * 我的相册删除照片(暂不考虑)
      * @author: 李胜辉
      * @time: 2018/12/01 11:34
      *
@@ -87,7 +82,7 @@ class UserCenter extends Base
     }
 
     /**
-     * 我的相册列表
+     * 我的相册列表(暂不考虑)
      * @author: 李胜辉
      * @time: 2018/12/01 11:34
      *
@@ -111,7 +106,7 @@ class UserCenter extends Base
     }
 
     /**
-     * 意见反馈
+     * 意见反馈(原来就有,写多了)
      * @author: 李胜辉
      * @time: 2018/12/01 11:34
      * @param:int userid 用户认证身份id
