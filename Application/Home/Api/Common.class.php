@@ -34,7 +34,7 @@ class Common extends Base
             $return['city'] = substr($resArr['result']['ad_info']['city_code'], 3, 6);//市编号
             $return['province'] = D('api_areas')->where(array('code' => $return['city']))->getField('pid');//省编号
             $return['area'] = $resArr['result']['ad_info']['adcode'];//县区编号
-            Response::success($return);
+            return $return;
         } else {
             Response::error(-1, '暂无数据');
         }
@@ -60,13 +60,15 @@ class Common extends Base
             $upload->replace = true;  //同名文件是否覆盖
             // 上传文件
             $res_info = $upload->upload();
+            $info = '';
             if($res_info){
                 foreach ($res_info as $key => $value) {
-                    $info[$key] = $value['savepath'] . $value['savename'];//拼接图片地址
-                    $info[$key] = substr(trim($info[$key]),2);
+                    $info .= $value['savepath'] . $value['savename'].';';//拼接图片地址
+                    $info = substr(trim($info),2);
                 }
                 unset($key, $value);
-                Response::success($info);
+                $info = substr(trim($info),0,-1);
+                return $info;
             }else{
                 $a = $upload->getError();//获取失败信息
                 Response::error(-2,$a);

@@ -149,10 +149,10 @@ class CompanyCenter extends Base
                 $str_descript .= $value['note'] . ';';
             }
             unset($key, $value);
-            $data['descript'] = $str_descript;
+            $data['descript'] = substr($str_descript,0,-1);
         }
         $common = new Common();
-        $arr_area = $common->location(array('lng' => $data['lng'], 'lat' => $data['lat']));
+        $arr_area = $common->getAddressNum(array('lng' => $data['lng'], 'lat' => $data['lat']));
         $data['province'] = $arr_area['province'];
         $data['city'] = $arr_area['city'];
         $data['area'] = $arr_area['area'];
@@ -268,12 +268,15 @@ class CompanyCenter extends Base
         if (!$id) {
             Response::error(-2, '缺少参数');
         }
-        $resume_info = D('api_recruitment as r')->join('left join api_identity as i on i.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.id,r.userid,r.title,p.position_name,r.phone,r.wage,r.payment_type,r.address,r.addtime,r.descript,r.read_num,r.recruitment_num,r.worked_years,r.education,i.realname,r.worktime_descript')->where(['r.id' => $id])->find();
+        $resume_info = D('api_recruitment as r')->join('left join api_identity as i on i.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.id,r.userid,r.title,p.position_name,r.phone,r.wage,r.payment_type,r.address,r.addtime,r.descript,r.read_num,r.recruitment_num,r.worked_years,r.education,i.realname,i.id as identity_id,r.worktime_descript')->where(['r.id' => $id])->find();
         if (empty($resume_info)) {
             Response::error(-1, '暂无数据');
         }
+        $resume_info['logo'] = D('api_company_info')->where(array('identity_id'=>$resume_info['identity_id']))->getField('logo');
+        $read_num = $resume_info['read_num']+1;
+        D('api_recruitment')->where(array('id'=>$resume_info['id']))->save(array('read_num'=>$read_num));
         $description = explode(';', $resume_info['descript']);
-        $resume_info['descript'] = json_encode($description);
+        $resume_info['descript'] = $description;
         $resume_info['addtime'] = date('Y-m-d',$resume_info['addtime']);
         Response::success($resume_info);
     }

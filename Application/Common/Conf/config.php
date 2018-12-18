@@ -4,7 +4,7 @@ return array(
     'URL_MODEL' => 2,
 
     'APP_VERSION' => 'v2.0',
-    'APP_NAME'    => 'apiAdmin',
+    'APP_NAME'    => '散工联盟',
 
     'USER_ADMINISTRATOR' => array(1,2),
     'AUTH_KEY' => 'I&TC{pft>L,C`wFQ>&#ROW>k{Kxlt1>ryW(>r<#R',

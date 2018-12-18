@@ -13,6 +13,8 @@ use Home\ORG\Response;
 use Home\ORG\ReturnCode;
 use Home\ORG\Str;
 use Home\Api\Common;
+use Home\Api\User;
+use Home\Api\WXBizDataCrypt;
 
 class UserCenter extends Base
 {
@@ -158,7 +160,7 @@ class UserCenter extends Base
                 $str_descript .= $value['note'] . ';';
             }
             unset($key, $value);
-            $data['description'] = $str_descript;
+            $data['description'] = substr($str_descript, 0, -1);
         }
         $work_records = htmlspecialchars_decode($param['work_records'], ENT_QUOTES);
         $arr_records = json_decode($work_records, true);
@@ -176,7 +178,7 @@ class UserCenter extends Base
         $is_have = D('api_resume')->where(array('userid' => $data['userid'], 'isdefault' => 1))->getField('rid');
         $data['isdefault'] = $is_have ? 2 : 1;
         $common = new Common();
-        $arr_area = $common->location(array('lng' => $data['lng'], 'lat' => $data['lat']));
+        $arr_area = $common->getAddressNum(array('lng' => $data['lng'], 'lat' => $data['lat']));
         $data['province'] = $arr_area['province'];
         $data['city'] = $arr_area['city'];
         $data['area'] = $arr_area['area'];
@@ -223,7 +225,7 @@ class UserCenter extends Base
         $sort = $param['sort'] ? $param['sort'] : '';//排序(1:日薪从高到低;2:月薪从高到低;3:距离;4:发布时间)
         $city_lat = $param['lat'] ? $param['lat'] : '';//纬度
         $city_lng = $param['lng'] ? $param['lng'] : '';//经度
-        $city = $param['city']?'':'';//城市编号
+        $city = $param['city'] ? '' : '';//城市编号
         $where = array();
         $where ['r.status'] = 1;
         $where ['r.dataflag'] = 1;
@@ -294,6 +296,86 @@ class UserCenter extends Base
     }
 
     /**
+     * 日结求职信息列表
+     * @author: 李胜辉
+     * @time: 2018/12/13 10:34
+     */
+    public function dayResumeList($param)
+    {
+        $pagenum = $param['pagenum'] ? $param['pagenum'] : 1;//当前页
+        $limit = $param['limit'] ? $param['limit'] : 10;//每页显示条数
+        $start = ($pagenum - 1) * $limit;
+        $position_id = $param['position_id'] ? $param['position_id'] : '';//职位id
+        $area = $param['area'] ? $param['area'] : '';//区县编码
+        $sort = $param['sort'] ? $param['sort'] : '';//排序(1:日薪从高到低;2:月薪从高到低;3:距离;4:发布时间)
+        $city_lat = $param['lat'] ? $param['lat'] : '';//纬度
+        $city_lng = $param['lng'] ? $param['lng'] : '';//经度
+        $city = $param['city'] ? '' : '';//城市编号
+        $where = array();
+        $where ['r.status'] = 1;
+        $where ['r.dataflag'] = 1;
+        $where['r.payment_type'] = array('lt', 2);
+        if ($city != '') {
+            $where['city'] = $city;
+        }
+        if ($position_id != '') {
+            $where['r.position_id'] = $position_id;
+        }
+        if ($area != '') {
+            $where['r.area'] = $area;
+        }
+        $str_sort = 'i.is_deposit,r.worked_years desc';
+        if ($sort != '') {
+            switch ($sort) {
+                case '1'://日薪从高到低
+                    $str_sort = 'r.wage desc';
+                    break;
+                case '2'://距离
+                    $str_sort = 'ACOS(SIN((' . $city_lat . ' * 3.1415) / 180 ) *SIN((r.lat * 3.1415) / 180 ) +COS((' . $city_lat . ' * 3.1415) / 180 ) * COS((r.lat * 3.1415) / 180 ) *COS((' . $city_lng . ' * 3.1415) / 180 - (r.lng * 3.1415) / 180 ) ) * 6380  asc';
+                    break;
+                case '3'://发布时间
+                    $str_sort = 'r.addtime desc';
+                    break;
+                default :
+                    $str_sort = 'i.is_deposit,r.worked_years';
+                    break;
+            }
+        }
+        $list = D('api_resume as r')->join('left join api_areas as a on a.code=r.area')->join('left join api_identity as i on i.userid=r.userid')->field('r.rid as id,r.title,r.wage,r.payment_type,r.worked_years,r.sex,r.age,r.education,r.addtime,a.region,i.is_deposit')->where($where)->limit($start, $limit)->order($str_sort)->select();
+        if ($list) {
+            foreach ($list as $key => $value) {
+                if ($value['is_deposit'] == '1') {
+                    $list[$key]['approve'] = 'Y';//是否认证
+                } else {
+                    $list[$key]['approve'] = 'N';
+                }
+                //发布时间
+                $list[$key]['addtime'] = date('Y-m-d', $value['addtime']);
+                //日结/月结
+                switch ($value['payment_type']) {
+                    case '0':
+                    case '1':
+                        $list[$key]['payment'] = '日结';//日结
+                        break;
+                    case '2':
+                    case '3':
+                        $list[$key]['payment'] = '月结';//月结
+                        break;
+                    default :
+                        $list[$key]['payment'] = '未知';//未知
+                        break;
+                }
+
+            }
+            unset($key, $value);
+            Response::success($list);
+        } else {
+            Response::error(-1, '暂无数据');
+        }
+
+    }
+
+    /**
      * 简历详情页
      * @author: 李胜辉
      * @time: 2018/11/30 11:34
@@ -306,16 +388,211 @@ class UserCenter extends Base
         if (!$id) {
             Response::error(-2, '缺少参数');
         }
-        $resume_info = D('api_resume as r')->join('left join api_users as u on u.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.rid as id,r.userid,r.user_name,r.age,r.sex,r.education,p.position_name,r.title,r.phone,r.wage,r.worktime_description,r.payment_type,r.worked_years,r.read_num,r.description,r.addtime,r.address,u.userphoto')->where(['r.rid' => $id])->find();
+        $resume_info = D('api_resume as r')->join('left join api_users as u on u.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.rid as id,r.userid,r.user_name,r.age,r.sex,r.education,p.position_name,r.title,r.phone,r.wage,r.worktime_description,r.payment_type,r.worked_years,r.graduate,r.read_num,r.description,r.addtime,r.address,u.userphoto')->where(['r.rid' => $id])->find();
         if (empty($resume_info)) {
             Response::error(-1, '暂无数据');
         }
+        $read_num = $resume_info['read_num'] + 1;
+        D('api_resume')->where(array('rid' => $resume_info['id']))->save(array('read_num' => $read_num));
         $work_records = D('api_work_records')->where(array('resume_id' => $resume_info['id']))->select();
-        $resume_info['work_records'] = json_encode($work_records);
+        $resume_info['work_records'] = $work_records;
         $description = explode(';', $resume_info['description']);
-        $resume_info['description'] = json_encode($description);
+        $resume_info['description'] = $description;
         $resume_info['addtime'] = date('Y-m-d', $resume_info['addtime']);
         Response::success($resume_info);
     }
+    /*********************************************************************登录注册 开始*******************************************************/
+    /**
+     * 判断是否授权(如果已经授权直接跳到登录方式选择页,否则跳到授权页)
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
 
+    public function checkAccredit($param)
+    {
+        $code = $param['code'];
+        if (!$code) {
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
+        }
+        $user = new User();
+        $openId = $user->getOpenId($code);
+        if (empty($openId['openid'])) {
+            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+        }
+        $res = D('ApiUsers')->where(array('openid' => $openId['openid']))->find();//是否已经授权
+        if (empty($res)) {
+            Response::error(-1, '暂未授权');
+        } else {
+            Response::success($res);
+        }
+    }
+
+    /**
+     * 微信授权(授权成功,跳到登录方式选择页)
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
+
+    public function wachetAccredit($param)
+    {
+        $code = $param['code'];
+        if (!$code) {
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
+        }
+        $user = new User();
+        $openId = $user->getOpenId($code);
+        if (empty($openId['openid'])) {
+            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+        }
+        if ($openId) {
+            $data['session_key'] = $openId['session_key'];
+            $data['addtime'] = time();
+            $data['openid'] = $openId['openid'];
+            $data['unionid'] = $openId['unionid'] ? $openId['unionid'] : '';
+            $newId = D('ApiUsers')->add($data);
+            if ($newId) {
+                Response::success(array('id' => $newId));//小程序存储userid
+            } else {
+                Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+            }
+        } else {
+            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+        }
+    }
+
+    /**
+     * 微信手机号授权(选择微信登录,弹框要求同意授权微信手机号)
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
+
+    public function wachetTelAccredit($param)
+    {
+        $code = $param['code'];
+        if (!$code) {
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
+        }
+        $user = new User();
+        $openId = $user->getOpenId($code);
+        if (empty($openId['openid'])) {
+            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+        }
+        if ($openId) {
+            $data['session_key'] = $openId['session_key'];
+            $data['addtime'] = time();
+            $data['openid'] = $openId['openid'];
+            $data['unionid'] = $openId['unionid'] ? $openId['unionid'] : '';
+            $newId = D('ApiUsers')->add($data);
+            if ($newId) {
+                Response::success(array('id' => $newId));
+            } else {
+                Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+            }
+        } else {
+            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+        }
+    }
+    /**
+     * 获取微信手机号
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
+    public function getWachetTel($param)
+    {
+        $userid = $param['userid'];
+        $encryptedData = $param['encryptedData'];
+        $iv = $param['iv'];
+        $appid = 'wxb9a7d2226e4b9cfe';
+        $sessionKey = D('api_users')->where(array('userid' => $userid))->getField('session_key');
+        $pc = new WXBizDataCrypt($appid, $sessionKey);
+        $errCode = $pc->decryptData($encryptedData, $iv, $data);
+        if ($errCode == 0) {
+            Response::success($data);
+        } else {
+            Response::error(-1,$errCode);
+        }
+    }
+
+//微信授权登录
+    public function index($param)
+    {
+        if (!$param['code']) {
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
+        }
+        $user = new User();
+        $openId = $user->getOpenId($param['code']);
+        //Response::debug($openId);
+        if (empty($openId['openid'])) {
+            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+        }
+        $res = D('ApiUsers')->where(array('openid' => $openId['openid']))->find();//是否已经授权
+        if (!empty($res)) {
+
+        } else {
+
+        }
+
+
+        if (empty($res)) {
+            $data['session_key'] = $openId['session_key'];
+            $data['addtime'] = time();
+            $data['openid'] = $openId['openid'];
+            $data['unionid'] = $openId['unionid'] ? $openId['unionid'] : '';
+            $newId = D('ApiUsers')->add($data);
+            $position = 1;
+            $person = 0;
+            $company = 0;
+        } else {
+            $data['session_key'] = $openId['session_key'];
+            D('ApiUsers')->where(array('openid' => $openId['openid']))->save($data);
+            $newId = $res['userid'];
+            $position = $res['identity'];
+            $person = D('ApiIdentity')->where(array('userid' => $res['userid'], 'type' => 1))->count();
+            $company = D('ApiIdentity')->where(array('userid' => $res['userid'], 'type' => 2))->count();
+        }
+
+        return array('userid' => $newId, 'position' => $position, 'person' => $person, 'company' => $company);
+    }
+
+
+    /*********************************************************************登录注册 结束*******************************************************/
+    /**
+     * 上传用户头像
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
+
+    public function uploadIcon($param)
+    {
+        $common = new Common();
+        $res = $common->upload(array('file_path' => 'userIcon'));
+        if (empty($res)) {
+            Response::error(-1, '上传失败');
+        } else {
+            $user_id = $param['user_id'];//用户id
+            $userphoto = $res;//头像url地址
+            if($user_id){
+                $update = D('api_users')->where(array('id'=>$user_id))->save(array('userphoto'=>$userphoto));
+                if($update){
+                    Response::success(array('update_num'=>$update));
+                }else{
+                    Response::error(-1, '上传失败');
+                }
+            }else{
+                Response::error(-2, '缺少参数');
+            }
+        }
+    }
+
+
+    /**********************************************************************获取微信手机号 开始**************************************************************/
+
+
+
+    /**********************************************************************获取微信手机号 结束**************************************************************/
 }

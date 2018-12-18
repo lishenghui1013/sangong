@@ -6,6 +6,7 @@
  */
 
 namespace Home\ORG;
+use Home\Api\Common;
 
 
 class Response {
@@ -39,7 +40,29 @@ class Response {
     static public function setDataType($type = DataType::TYPE_OBJECT) {
         self::$dataType = $type;
     }
-
+    /**
+     * 过滤数据(把数据中的null数据替换为'')
+     * @author: 李胜辉
+     * @time: 2018/11/12 09:34
+     */
+    static public function replaceData($arr){
+        if($arr !== null){
+            if(is_array($arr)){
+                if(!empty($arr)){
+                    foreach($arr as $key => $value){
+                        if($value === null){
+                            $arr[$key] = '';
+                        }else{
+                            $arr[$key] = self::replaceData($value);      //递归再去执行
+                        }
+                    }
+                }else{ $arr = array(); }
+            }else{
+                if($arr === null){ $arr = ''; }         //注意三个等号
+            }
+        }else{ $arr = ''; }
+        return $arr;
+    }
     /**
      * 错误输出
      * @param integer $code 错误码，必填！
@@ -47,6 +70,7 @@ class Response {
      * @param array   $data
      */
     static public function error($code, $msg = '', $data = array()) {
+        $data = self::replaceData($data);
         $returnData = array(
             'code' => $code,
             'msg'  => $msg,
@@ -74,6 +98,7 @@ class Response {
     static public function success($data, $code = null) {
         $code = is_null($code) ? ReturnCode::SUCCESS : $code;
         $msg = is_null(self::$successMsg) ? '操作成功' : self::$successMsg;
+        $data = self::replaceData($data);
         $returnData = array(
             'code' => $code,
             'msg'  => $msg,
