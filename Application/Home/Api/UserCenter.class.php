@@ -388,7 +388,7 @@ class UserCenter extends Base
         if (!$id) {
             Response::error(-2, '缺少参数');
         }
-        $resume_info = D('api_resume as r')->join('left join api_users as u on u.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.rid as id,r.userid,r.user_name,r.age,r.sex,r.education,p.position_name,r.title,r.phone,r.wage,r.worktime_description,r.payment_type,r.worked_years,r.graduate,r.read_num,r.description,r.addtime,r.address,u.userphoto')->where(['r.rid' => $id])->find();
+        $resume_info = D('api_resume as r')->join('left join api_users as u on u.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.rid as id,r.userid,r.user_name,r.age,r.sex,r.education,p.position_name,p.pid,r.title,r.phone,r.wage,r.worktime_description,r.payment_type,r.worked_years,r.graduate,r.read_num,r.description,r.addtime,r.address,u.userphoto')->where(['r.rid' => $id])->find();
         if (empty($resume_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -399,37 +399,14 @@ class UserCenter extends Base
         $description = explode(';', $resume_info['description']);
         $resume_info['description'] = $description;
         $resume_info['addtime'] = date('Y-m-d', $resume_info['addtime']);
+        $resume_info['industry'] = D('api_r_position')->where(array('id' => $resume_info['pid']))->getField('position_name');//行业名称
         Response::success($resume_info);
     }
     /*********************************************************************登录注册 开始*******************************************************/
-    /**
-     * 判断是否授权(如果已经授权直接跳到登录方式选择页,否则跳到授权页)
-     * @author: 李胜辉
-     * @time: 2018/12/17 11:34
-     *
-     */
 
-    public function checkAccredit($param)
-    {
-        $code = $param['code'];
-        if (!$code) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
-        }
-        $user = new User();
-        $openId = $user->getOpenId($code);
-        if (empty($openId['openid'])) {
-            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
-        }
-        $res = D('ApiUsers')->where(array('openid' => $openId['openid']))->find();//是否已经授权
-        if (empty($res)) {
-            Response::error(-1, '暂未授权');
-        } else {
-            Response::success($res);
-        }
-    }
 
     /**
-     * 微信授权(授权成功,跳到登录方式选择页)
+     * 微信登录(点击微信登录->获取openid和session_key)
      * @author: 李胜辉
      * @time: 2018/12/17 11:34
      *
@@ -447,54 +424,16 @@ class UserCenter extends Base
             Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
         }
         if ($openId) {
-            $data['session_key'] = $openId['session_key'];
-            $data['addtime'] = time();
-            $data['openid'] = $openId['openid'];
-            $data['unionid'] = $openId['unionid'] ? $openId['unionid'] : '';
-            $newId = D('ApiUsers')->add($data);
-            if ($newId) {
-                Response::success(array('id' => $newId));//小程序存储userid
-            } else {
-                Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
-            }
+                session('session_key',$openId['session_key']);
+                session('openid',$openId['openid']);
+                session('unionid',$openId['unionid']);
+                Response::success(array());
         } else {
             Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
         }
     }
 
-    /**
-     * 微信手机号授权(选择微信登录,弹框要求同意授权微信手机号)
-     * @author: 李胜辉
-     * @time: 2018/12/17 11:34
-     *
-     */
 
-    public function wachetTelAccredit($param)
-    {
-        $code = $param['code'];
-        if (!$code) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
-        }
-        $user = new User();
-        $openId = $user->getOpenId($code);
-        if (empty($openId['openid'])) {
-            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
-        }
-        if ($openId) {
-            $data['session_key'] = $openId['session_key'];
-            $data['addtime'] = time();
-            $data['openid'] = $openId['openid'];
-            $data['unionid'] = $openId['unionid'] ? $openId['unionid'] : '';
-            $newId = D('ApiUsers')->add($data);
-            if ($newId) {
-                Response::success(array('id' => $newId));
-            } else {
-                Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
-            }
-        } else {
-            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
-        }
-    }
     /**
      * 获取微信手机号
      * @author: 李胜辉
@@ -503,60 +442,57 @@ class UserCenter extends Base
      */
     public function getWachetTel($param)
     {
-        $userid = $param['userid'];
         $encryptedData = $param['encryptedData'];
         $iv = $param['iv'];
         $appid = 'wxb9a7d2226e4b9cfe';
-        $sessionKey = D('api_users')->where(array('userid' => $userid))->getField('session_key');
+        $datas = arary();
+        $sessionKey = session('session_key');
+       /* $data['openid'] = session('openid');
+        $data['unionid'] = session('unionid');
+        $has = D('api_users')->where(array('userid' => $data['openid']))->find();
+        if($has){
+
+        }else{
+
+        }*/
         $pc = new WXBizDataCrypt($appid, $sessionKey);
         $errCode = $pc->decryptData($encryptedData, $iv, $data);
         if ($errCode == 0) {
+            print_r($data);exit;
             Response::success($data);
         } else {
             Response::error(-1,$errCode);
         }
     }
 
-//微信授权登录
-    public function index($param)
+    /**
+     * 手机号验证码登录
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
+    public function phoneLogin($param)
     {
-        if (!$param['code']) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
+        $phone = $param['phone'];
+        $code = $param['code'];
+        $pcre = '/^1[3456789]\d{9}$/';
+        if($phone==''||!preg_match_all($pcre,$phone)){
+            Response::error(-1,'手机号格式不正确');
         }
-        $user = new User();
-        $openId = $user->getOpenId($param['code']);
-        //Response::debug($openId);
-        if (empty($openId['openid'])) {
-            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
+        if($code===''){
+            Response::error(-3,'验证码不能为空');
         }
-        $res = D('ApiUsers')->where(array('openid' => $openId['openid']))->find();//是否已经授权
-        if (!empty($res)) {
-
+        if($code!=session('code')){
+            Response::error(-4,'验证码错误');
+        }
+        $res = D('api_users')->where(array('phone'=>$phone))->find();
+        if ($res) {
+            Response::success($res);
         } else {
-
+            Response::error(-1,'请注册');
         }
-
-
-        if (empty($res)) {
-            $data['session_key'] = $openId['session_key'];
-            $data['addtime'] = time();
-            $data['openid'] = $openId['openid'];
-            $data['unionid'] = $openId['unionid'] ? $openId['unionid'] : '';
-            $newId = D('ApiUsers')->add($data);
-            $position = 1;
-            $person = 0;
-            $company = 0;
-        } else {
-            $data['session_key'] = $openId['session_key'];
-            D('ApiUsers')->where(array('openid' => $openId['openid']))->save($data);
-            $newId = $res['userid'];
-            $position = $res['identity'];
-            $person = D('ApiIdentity')->where(array('userid' => $res['userid'], 'type' => 1))->count();
-            $company = D('ApiIdentity')->where(array('userid' => $res['userid'], 'type' => 2))->count();
-        }
-
-        return array('userid' => $newId, 'position' => $position, 'person' => $person, 'company' => $company);
     }
+
 
 
     /*********************************************************************登录注册 结束*******************************************************/

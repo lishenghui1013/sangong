@@ -30,7 +30,7 @@ class CompanyCenter extends Base
             Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
 
-        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as c on c.identity_id=i.id')->join('left join api_industry as d on d.id=c.industry_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,u.userphoto,d.industry_name,c.logo')->where(['i.type' => 2, 'i.userid' => $userid])->find();
+        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as c on c.identity_id=i.id')->join('left join api_r_position as d on d.id=c.industry_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,u.userphoto,d.position_name,c.logo')->where(['i.type' => 2, 'i.userid' => $userid])->find();
         if (empty($user_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -46,7 +46,7 @@ class CompanyCenter extends Base
 
     public function industryList()
     {
-        $list = D('api_industry')->field('id,industry_name')->select();
+        $list = D('api_r_position')->field('id,position_name,addtime')->where(array('dataflag'=>1,'pid'=>0))->select();
         if (empty($list)) {
             Response::error(-1, '暂无数据');
         }
@@ -268,7 +268,7 @@ class CompanyCenter extends Base
         if (!$id) {
             Response::error(-2, '缺少参数');
         }
-        $resume_info = D('api_recruitment as r')->join('left join api_identity as i on i.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.id,r.userid,r.title,p.position_name,r.phone,r.wage,r.payment_type,r.address,r.addtime,r.descript,r.read_num,r.recruitment_num,r.worked_years,r.education,i.realname,i.id as identity_id,r.worktime_descript')->where(['r.id' => $id])->find();
+        $resume_info = D('api_recruitment as r')->join('left join api_identity as i on i.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.id,r.userid,r.title,p.position_name,p.pid,r.phone,r.wage,r.payment_type,r.address,r.addtime,r.descript,r.read_num,r.recruitment_num,r.worked_years,r.education,i.realname,i.id as identity_id,r.worktime_descript')->where(['r.id' => $id])->find();
         if (empty($resume_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -278,6 +278,7 @@ class CompanyCenter extends Base
         $description = explode(';', $resume_info['descript']);
         $resume_info['descript'] = $description;
         $resume_info['addtime'] = date('Y-m-d',$resume_info['addtime']);
+        $resume_info['industry'] = D('api_r_position')->where(array('id' => $resume_info['pid']))->getField('position_name');//行业名称
         Response::success($resume_info);
     }
     /**
@@ -289,7 +290,7 @@ class CompanyCenter extends Base
     public function companyDetail($param)
     {
         $id = $param['id'];//公司id
-        $res = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->join('left join api_industry as d on d.id=c.industry_id')->field('c.intro,c.id,c.identity_id,c.industry_id,c.logo,c.phone,c.address,i.realname,i.is_deposit,d.industry_name')->where(array('c.id' => $id))->find();
+        $res = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->join('left join api_r_position as d on d.id=c.industry_id')->field('c.intro,c.id,c.identity_id,c.industry_id,c.logo,c.phone,c.address,i.realname,i.is_deposit,d.industry_name')->where(array('c.id' => $id))->find();
         if ($res) {
             Response::success($res);
         } else {
@@ -355,7 +356,7 @@ class CompanyCenter extends Base
         $where = array();
         $where['type'] = 2;//身份(1个人 2企业)
         $where['is_deposit'] = 1;//是否缴纳了保证金(1:已经缴费;2:没有缴费)
-        $res = D('api_identity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as ci on ci.identity_id=i.id')->join('left join api_industry as d on d.id=ci.industry_id')->field('i.id,i.userid,i.realname,u.userphoto,ci.logo,d.industry_name')->where($where)->limit($start,$limit)->select();
+        $res = D('api_identity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as ci on ci.identity_id=i.id')->join('left join api_r_position as d on d.id=ci.industry_id')->field('i.id,i.userid,i.realname,u.userphoto,ci.logo,d.industry_name')->where($where)->limit($start,$limit)->select();
         if ($res) {
             Response::success($res);
         } else {

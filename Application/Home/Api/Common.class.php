@@ -61,22 +61,47 @@ class Common extends Base
             // 上传文件
             $res_info = $upload->upload();
             $info = '';
-            if($res_info){
+            if ($res_info) {
                 foreach ($res_info as $key => $value) {
-                    $info .= $value['savepath'] . $value['savename'].';';//拼接图片地址
-                    $info = substr(trim($info),2);
+                    $info .= $value['savepath'] . $value['savename'] . ';';//拼接图片地址
+                    $info = substr(trim($info), 2);
                 }
                 unset($key, $value);
-                $info = substr(trim($info),0,-1);
+                $info = substr(trim($info), 0, -1);
                 return $info;
-            }else{
+            } else {
                 $a = $upload->getError();//获取失败信息
-                Response::error(-2,$a);
+                Response::error(-2, $a);
             }
 
         } else {
-            Response::error(-1,'请选择文件');
+            Response::error(-1, '请选择文件');
         }
+    }
+
+    /**
+     * 行业/职位列表
+     * @author: 李胜辉
+     * @time: 2018/12/19 11:34
+     *
+     */
+
+    public function positionList()
+    {
+        $where = array();
+        $where['dataflag'] = 1;
+        $where['pid'] = 0;
+        $list = D('api_r_position')->field('id,pid,position_name,addtime,dataflag')->where($where)->order('id asc')->select();
+        if (empty($list)) {
+            Response::error(-1, '暂无数据');
+        }else{
+            foreach($list as $key=>$value){
+                $list[$key]['position'] = D('api_r_position')->where(array('pid'=>$value['id'],'dataflag'=>1))->field('id,pid,position_name,addtime,dataflag')->select();
+            }
+            unset($key,$vlaue);
+            Response::success($list);
+        }
+
     }
 
 
