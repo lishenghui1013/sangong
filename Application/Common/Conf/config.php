@@ -10,7 +10,7 @@ return array(
     'AUTH_KEY' => 'I&TC{pft>L,C`wFQ>&#ROW>k{Kxlt1>ryW(>r<#R',
 
     'COMPANY_NAME' => 'ApiAdmin开发维护团队',
-
+    'LOAD_EXT_CONFIG' => 'const',
     'URL_ROUTER_ON'   => true,
     'URL_ROUTE_RULES' => array(
         'wiki/:hash'  => 'Home/Wiki/apiField',

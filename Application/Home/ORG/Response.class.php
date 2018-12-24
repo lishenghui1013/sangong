@@ -58,9 +58,9 @@ class Response {
                     }
                 }else{ $arr = array(); }
             }else{
-                if($arr === null){ $arr = ''; }         //注意三个等号
+                if($arr === null){ $arr = []; }         //注意三个等号
             }
-        }else{ $arr = ''; }
+        }else{ $arr = []; }
         return $arr;
     }
     /**
@@ -70,7 +70,6 @@ class Response {
      * @param array   $data
      */
     static public function error($code, $msg = '', $data = array()) {
-        $data = self::replaceData($data);
         $returnData = array(
             'code' => $code,
             'msg'  => $msg,
@@ -98,7 +97,6 @@ class Response {
     static public function success($data, $code = null) {
         $code = is_null($code) ? ReturnCode::SUCCESS : $code;
         $msg = is_null(self::$successMsg) ? '操作成功' : self::$successMsg;
-        $data = self::replaceData($data);
         $returnData = array(
             'code' => $code,
             'msg'  => $msg,

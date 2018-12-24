@@ -37,6 +37,7 @@ class CompanyCenter extends Base
         Response::success($user_info);
     }
 //简介,  行业列表
+
     /**
      * 行业列表
      * @author: 李胜辉
@@ -46,12 +47,13 @@ class CompanyCenter extends Base
 
     public function industryList()
     {
-        $list = D('api_r_position')->field('id,position_name,addtime')->where(array('dataflag'=>1,'pid'=>0))->select();
+        $list = D('api_r_position')->field('id,position_name,addtime')->where(array('dataflag' => 1, 'pid' => 0))->select();
         if (empty($list)) {
             Response::error(-1, '暂无数据');
         }
         Response::success($list);
     }
+
     /**
      * 添加公司信息
      * @author: 李胜辉
@@ -68,45 +70,61 @@ class CompanyCenter extends Base
     public function addCompanyInfo($param)
     {
         $id = $param['userid'];
-        $identify_id = D('api_identity')->where(array('userid'=>$id,'type'=>2))->getField('id');
+        $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
         //添加公司信息表api_company_info记录
-        $com_data['identify_id'] = $identify_id;
+        $com_data['identify_id'] = $identity_id;
         $com_data['intro'] = $param['intro'];
         $com_data['industry_id'] = $param['industry_id'];
-        $com_data['logo'] = $param['logo'];
+        $arr_uploads = $this->upload(array('file_path' => 'company'));
+        $com_data['logo'] = $arr_uploads['logo'];
         $com_data['phone'] = $param['phone'];
         $com_data['address'] = $param['address'];
         $com_data['add_time'] = date('Y-m-d H:i:s', time());
         $res = D('api_company_info')->add($com_data);
         //添加优惠信息记录
-        $dis_info = htmlspecialchars_decode($param['dis_info'], ENT_QUOTES);
-        $dis_data = json_decode($dis_info,true);
+        $discounts['title'] = $param['title'];//标题
+        $discounts['content'] = $param['content'];//内容
+        $discounts['pic'] = $arr_uploads['pic'];//优惠图片
         $time = date('Y-m-d H:i:s', time());
-        if($dis_data){
-            foreach($dis_data as $key=>$value){
-                $dis_data[$key]['add_time'] = $time;
+        if ($discounts) {
+            foreach ($discounts as $key => $value) {
+                if (is_array($value)) {
+                    foreach ($value as $k => $v) {
+                        $arr_dis[$k][$key] = $v;
+                        $arr_dis[$k]['add_time'] = $time;
+                        $arr_dis[$k]['identity_id'] = $identity_id;
+                    }
+                    unset($k, $v);
+                }
             }
-            unset($key,$value);
+            unset($key, $value);
         }
-        $dis_res = D('api_company_discounts')->addAll($dis_data);
+        $dis_res = D('api_company_discounts')->addAll($arr_dis);
         //添加服务项目
-        $item_info = htmlspecialchars_decode($param['item_info'], ENT_QUOTES);
-        $item_data = json_decode($item_info,true);
-        if($item_data){
-            foreach($item_data as $key=>$value){
-                $item_data[$key]['add_time'] = $time;
+        $item_info['item_name'] = $param['item_name'];//服务项目名称
+        $item_info['pic'] = $arr_uploads['item_pic'];//服务项目图片
+        if ($item_info) {
+            foreach ($item_info as $key => $value) {
+                if (is_array($value)) {
+                    foreach ($value as $k => $v) {
+                        $item_data[$k][$key] = $v;
+                        $item_data[$k]['add_time'] = $time;
+                        $item_data[$k]['identity_id'] = $identity_id;
+                    }
+                    unset($k, $v);
+                }
             }
-            unset($key,$value);
+            unset($key, $value);
         }
         $item_res = D('api_company_item')->addAll($item_data);
         if ($res) {
-            if($dis_res){
-                if($item_res){
+            if ($dis_res) {
+                if ($item_res) {
                     Response::success(array());
-                }else{
+                } else {
                     Response::error(-2, '服务项目添加失败!');
                 }
-            }else{
+            } else {
                 Response::error(-3, '优惠信息添加失败!');
             }
         } else {
@@ -114,6 +132,106 @@ class CompanyCenter extends Base
         }
     }
 
+    /**
+     * 编辑公司信息
+     * @author: 李胜辉
+     * @time: 2018/12/01 11:34
+     * @param:int userid 用户id
+     * @param: string intro 公司简介
+     * @param: int industry_id 行业id
+     * @param: string logo 公司logo
+     * @param: string phone 公司电话
+     * @param: string address 公司地址
+     */
+    public function editCompanyInfo($param)
+    {
+        $id = $param['userid'] ? $param['userid'] : '';
+        $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        //添加公司信息表api_company_info记录
+        $com_data['intro'] = $param['intro'];
+        $com_data['industry_id'] = $param['industry_id'];
+        $arr_uploads = $this->upload(array('file_path' => 'company'));
+        $com_data['logo'] = $arr_uploads['logo'];
+        $com_data['phone'] = $param['phone'];
+        $com_data['address'] = $param['address'];
+        $res = D('api_company_info')->where(array('industry_id' => $identity_id))->save($com_data);
+        //编辑优惠信息记录
+        $discounts['title'] = $param['title'];//标题
+        $discounts['content'] = $param['content'];//内容
+        $discounts['pic'] = $arr_uploads['pic'];//优惠图片
+        if ($discounts) {
+            foreach ($discounts as $key => $value) {
+                if (is_array($value)) {
+                    foreach ($value as $k => $v) {
+                        $arr_dis[$k][$key] = $v;
+                    }
+                    unset($k, $v);
+                }
+            }
+            unset($key, $value);
+            if ($arr_dis) {
+                foreach ($arr_dis as $key => $value) {
+                    $update = D('api_company_discounts')->save($arr_dis[$key]);
+                    if ($update === false) {
+                        Response::error(-2, '出错了');
+                    }
+                }
+                unset($value, $key);
+            }
+        }
+        //添加服务项目
+        $item_info['item_name'] = $param['item_name'];//服务项目名称
+        $item_info['pic'] = $arr_uploads['item_pic'];//服务项目图片
+        if ($item_info) {
+            foreach ($item_info as $key => $value) {
+                if (is_array($value)) {
+                    foreach ($value as $k => $v) {
+                        $item_data[$k][$key] = $v;
+                    }
+                    unset($k, $v);
+                }
+            }
+            unset($key, $value);
+            if ($item_data) {
+                foreach ($item_data as $key => $value) {
+                    $update = D('api_company_discounts')->save($item_data[$key]);
+                    if ($update === false) {
+                        Response::error(-2, '出错了');
+                    }
+                }
+                unset($value, $key);
+            }
+        }
+
+        if ($res) {
+            Response::setSuccessMsg('修改成功');
+            Response::success(array());
+        } else {
+            Response::error(-1, '修改失败!');
+        }
+    }
+
+    /**
+     * 查询要编辑的公司信息
+     * @author: 李胜辉
+     * @time: 2018/12/01 11:34
+     * @param:int userid 用户id
+     */
+    public function getEditCompanyInfo($param)
+    {
+        $id = $param['userid'] ? $param['userid'] : '';
+        $identify_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        $res['company_info'] = D('api_company_info')->where(array('industry_id' => $identify_id))->find();
+        //编辑优惠信息记录
+        $res['company_discounts'] = D('api_company_discounts')->where(array('industry_id' => $identify_id))->select();
+        //编辑服务项目
+        $res['company_discounts'] = D('api_company_item')->where(array('industry_id' => $identify_id))->select();
+        if ($res) {
+            Response::success($res);
+        } else {
+            Response::error(-1, '暂无数据');
+        }
+    }
 
 
     /**
@@ -149,7 +267,7 @@ class CompanyCenter extends Base
                 $str_descript .= $value['note'] . ';';
             }
             unset($key, $value);
-            $data['descript'] = substr($str_descript,0,-1);
+            $data['descript'] = substr($str_descript, 0, -1);
         }
         $common = new Common();
         $arr_area = $common->getAddressNum(array('lng' => $data['lng'], 'lat' => $data['lat']));
@@ -183,7 +301,7 @@ class CompanyCenter extends Base
         $city_lat = $param['lat'] ? $param['lat'] : '';//纬度
         $city_lng = $param['lng'] ? $param['lng'] : '';//经度
         $userid = $param['userid'] ? $param['userid'] : '';//用户id
-        $city = $param['city']?'':'';
+        $city = $param['city'] ? '' : '';
         $where = array();
         $where ['r.status'] = 1;
         $where ['r.dataflag'] = 1;
@@ -272,15 +390,16 @@ class CompanyCenter extends Base
         if (empty($resume_info)) {
             Response::error(-1, '暂无数据');
         }
-        $resume_info['logo'] = D('api_company_info')->where(array('identity_id'=>$resume_info['identity_id']))->getField('logo');
-        $read_num = $resume_info['read_num']+1;
-        D('api_recruitment')->where(array('id'=>$resume_info['id']))->save(array('read_num'=>$read_num));
+        $resume_info['logo'] = D('api_company_info')->where(array('identity_id' => $resume_info['identity_id']))->getField('logo');
+        $read_num = $resume_info['read_num'] + 1;
+        D('api_recruitment')->where(array('id' => $resume_info['id']))->save(array('read_num' => $read_num));
         $description = explode(';', $resume_info['descript']);
         $resume_info['descript'] = $description;
-        $resume_info['addtime'] = date('Y-m-d',$resume_info['addtime']);
+        $resume_info['addtime'] = date('Y-m-d', $resume_info['addtime']);
         $resume_info['industry'] = D('api_r_position')->where(array('id' => $resume_info['pid']))->getField('position_name');//行业名称
         Response::success($resume_info);
     }
+
     /**
      * 查询公司信息
      * @author: 李胜辉
@@ -297,6 +416,7 @@ class CompanyCenter extends Base
             Response::error(-1, '暂无数据!');
         }
     }
+
     /**
      * 公司服务项目列表
      * @author: 李胜辉
@@ -309,14 +429,15 @@ class CompanyCenter extends Base
         $limit = $param['limit'] ? $param['limit'] : 10;//每页显示条数
         $start = ($pagenum - 1) * $limit;
         $id = $param['id'];//公司id
-        $identiry_id = D('api_company_info')->where(array('id'=>$id))->getField('identity_id');
-        $res = D('api_company_item')->field('id,item_name,pic')->where(array('identity_id'=>$identiry_id))->limit($start,$limit)->select();
+        $identiry_id = D('api_company_info')->where(array('id' => $id))->getField('identity_id');
+        $res = D('api_company_item')->field('id,item_name,pic')->where(array('identity_id' => $identiry_id))->limit($start, $limit)->select();
         if ($res) {
             Response::success($res);
         } else {
             Response::error(-1, '暂无数据!');
         }
     }
+
     /**
      * 公司优惠信息列表
      * @author: 李胜辉
@@ -325,24 +446,25 @@ class CompanyCenter extends Base
      */
     public function discountsList($param)
     {
-        $id = $param['id']?$param['id']:'';//公司id
+        $id = $param['id'] ? $param['id'] : '';//公司id
         $pagenum = $param['pagenum'] ? $param['pagenum'] : 1;//当前页
         $limit = $param['limit'] ? $param['limit'] : 10;//每页显示条数
         $start = ($pagenum - 1) * $limit;
         $where = array();
         $total = D('api_company_item')->where($where)->count();
-        if($id!=''){
-            $identiry_id = D('api_company_info')->where(array('id'=>$id))->getField('identity_id');
+        if ($id != '') {
+            $identiry_id = D('api_company_info')->where(array('id' => $id))->getField('identity_id');
             $where['c.identity_id'] = $identiry_id;
             $limit = $total;
         }
-        $res = D('api_company_discounts as c')->join('left join api_identity as i on i.id=c.identity_id')->field('c.id,c.identity_id,c.title,c.content,c.pic,c.add_time,i.realname,i.userid')->where($where)->limit($start,$limit)->select();
+        $res = D('api_company_discounts as c')->join('left join api_identity as i on i.id=c.identity_id')->field('c.id,c.identity_id,c.title,c.content,c.pic,c.add_time,i.realname,i.userid')->where($where)->limit($start, $limit)->select();
         if ($res) {
             Response::success($res);
         } else {
             Response::error(-1, '暂无数据!');
         }
     }
+
     /**
      * 会员企业列表
      * @author: 李胜辉
@@ -356,11 +478,92 @@ class CompanyCenter extends Base
         $where = array();
         $where['type'] = 2;//身份(1个人 2企业)
         $where['is_deposit'] = 1;//是否缴纳了保证金(1:已经缴费;2:没有缴费)
-        $res = D('api_identity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as ci on ci.identity_id=i.id')->join('left join api_r_position as d on d.id=ci.industry_id')->field('i.id,i.userid,i.realname,u.userphoto,ci.logo,d.industry_name')->where($where)->limit($start,$limit)->select();
+        $res = D('api_identity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as ci on ci.identity_id=i.id')->join('left join api_r_position as d on d.id=ci.industry_id')->field('i.id,i.userid,i.realname,u.userphoto,ci.logo,d.industry_name')->where($where)->limit($start, $limit)->select();
         if ($res) {
             Response::success($res);
         } else {
             Response::error(-1, '暂无数据!');
         }
     }
+
+    /**
+     * 拨打简历电话
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
+
+    public function getPhone($param)
+    {
+        $id = $param['id'];//简历id
+        $data['userid'] = $param['userid'] ? $param['userid'] : '';
+        $data['identity'] = $param['identity'] ? $param['identity'] : '2';
+        $time = time();
+        $data['add_time'] = date('Y-m-d H:i:s', $time);
+        $limit_num = 5;//限制次数
+        if ($param['userid'] != '' && $param['identity'] != '') {
+            $where['userid'] = $param['userid'];
+            $where['identity'] = $param['identity'];
+            $date = date('Y-m-d', $time);
+            $where['_string'] = 'date_format(add_time, "%Y-%m-%d")="' . $date . '"';
+            $call_num = D('api_call_records')->where($where)->count();//当天打电话次数
+            $share_num = D('api_share')->where($where)->count();//当天分享次数
+            $total = $call_num + $share_num;
+            if ($total > $limit_num) {
+                Response::error(-2, '每天最多拨打' . $limit_num . '次,请通过分享来获得更多拨打机会');
+            }
+        }
+        $phone = D('api_resume')->where(array('rid' => $id))->getField('phone');
+        if ($phone) {
+            $res = D('api_call_records')->add($data);
+            if ($res) {
+                Response::success(array('phone' => $phone));
+            } else {
+                Response::error(-2, '出错了');
+            }
+            Response::success(array('phone' => $phone));
+        } else {
+            Response::error(-1, '未查到');
+        }
+    }
+
+    /**
+     * 文件上传方法
+     * @author: 李胜辉
+     * @time: 2018/12/24 16:34
+     * @param: $files  $_FILES
+     * @param: $path string 路径
+     */
+    public function uploads($param)
+    {
+        $path = $param['file_path'];
+        $upload = new \Think\Upload();   // 实例化上传类
+        $upload->maxSize = 314572800000;    // 设置附件上传大小
+        /*$upload->exts = array('jpg', 'gif', 'png', 'jpeg'); // 设置附件上传类型*/
+        $upload->rootPath = THINK_PATH;          // 设置附件上传根目录
+        $upload->savePath = '../Public/uploads/';    // 设置附件上传（子）目录
+        $upload->subName = $path;  //子文件夹
+        $upload->replace = true;  //同名文件是否覆盖
+        // 上传文件
+        $return = array();
+        if ($_FILES) {
+            foreach ($_FILES as $key => $value) {
+                $temp = array();
+                $temp[$key] = $_FILES[$key];
+                $res_info = $upload->upload($temp);
+                if ($res_info) {
+                    $info = '';
+                    foreach ($res_info as $keys => $tepimg) {
+                        $info .= preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'] . ';';//拼接图片地址
+                    }
+                    unset($keys, $tepimg);
+                    $info = substr($info, 0, -1);
+                    $return[$key] = $info;
+                }
+            }
+            unset($key, $value);
+        }
+        return $return;
+    }
+
 }

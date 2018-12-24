@@ -15,6 +15,7 @@ use Home\ORG\Str;
 use Home\Api\Common;
 use Home\Api\User;
 use Home\Api\WXBizDataCrypt;
+use Think\Model;
 
 class UserCenter extends Base
 {
@@ -31,7 +32,7 @@ class UserCenter extends Base
         if (!$userid) {
             Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
-        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_resume as r on r.userid=i.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,p.position_name,u.userphoto')->where(['i.type' => 1, 'i.userid' => $userid])->find();
+        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_resume as r on r.userid=i.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('i.id,u.username,i.is_deposit,i.userid,u.identity,p.position_name,u.userphoto')->where(['i.type' => 1, 'i.userid' => $userid])->find();
         if (empty($user_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -389,6 +390,7 @@ class UserCenter extends Base
             Response::error(-2, '缺少参数');
         }
         $resume_info = D('api_resume as r')->join('left join api_users as u on u.userid=r.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('r.rid as id,r.userid,r.user_name,r.age,r.sex,r.education,p.position_name,p.pid,r.title,r.phone,r.wage,r.worktime_description,r.payment_type,r.worked_years,r.graduate,r.read_num,r.description,r.addtime,r.address,u.userphoto')->where(['r.rid' => $id])->find();
+
         if (empty($resume_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -406,94 +408,236 @@ class UserCenter extends Base
 
 
     /**
-     * 微信登录(点击微信登录->获取openid和session_key)
-     * @author: 李胜辉
-     * @time: 2018/12/17 11:34
-     *
-     */
-
-    public function wachetAccredit($param)
-    {
-        $code = $param['code'];
-        if (!$code) {
-            Response::error(ReturnCode::EMPTY_PARAMS, '缺少code');
-        }
-        $user = new User();
-        $openId = $user->getOpenId($code);
-        if (empty($openId['openid'])) {
-            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
-        }
-        if ($openId) {
-                session('session_key',$openId['session_key']);
-                session('openid',$openId['openid']);
-                session('unionid',$openId['unionid']);
-                Response::success(array());
-        } else {
-            Response::error(ReturnCode::LOGIN_ERROR, '授权登录失败');
-        }
-    }
-
-
-    /**
-     * 获取微信手机号
+     * 获取微信手机号(没用)
      * @author: 李胜辉
      * @time: 2018/12/17 11:34
      *
      */
     public function getWachetTel($param)
     {
-        $encryptedData = $param['encryptedData'];
-        $iv = $param['iv'];
-        $appid = 'wxb9a7d2226e4b9cfe';
-        $datas = arary();
-        $sessionKey = session('session_key');
-       /* $data['openid'] = session('openid');
-        $data['unionid'] = session('unionid');
-        $has = D('api_users')->where(array('userid' => $data['openid']))->find();
-        if($has){
-
-        }else{
-
-        }*/
+        $encryptedData = $param['encryptedData'];//加密数据
+        $iv = $param['iv'];//iv
+        $appid = 'wxb9a7d2226e4b9cfe';//appid
+        //$sessionKey = session('session_key');
+        $sessionKey = $param['session_key'];//session_key
         $pc = new WXBizDataCrypt($appid, $sessionKey);
         $errCode = $pc->decryptData($encryptedData, $iv, $data);
         if ($errCode == 0) {
-            print_r($data);exit;
             Response::success($data);
         } else {
-            Response::error(-1,$errCode);
+            Response::error(-1, $errCode);
         }
     }
 
     /**
-     * 手机号验证码登录
+     * 注册
      * @author: 李胜辉
-     * @time: 2018/12/17 11:34
+     * @time: 2018/12/20 11:34
+     *
+     */
+    public function register($param)
+    {
+        $data['phone'] = $param['phone'];//手机号
+        $data['identity'] = 1;//身份状态1个人 2公司
+        $code = $param['code'];//用户输入的验证码
+        $code_info = D('api_phone_code')->where(array('phone' => $param['phone']))->limit(0, 1)->order('id desc')->select();//系统发送的验证码
+        $time = time();
+        $limit_time = 60 * 5 + $code_info[0]['add_time'];
+        if ($time > $limit_time) {
+            Response::error(-9, '验证码已过期');
+        }
+        $sys_code = $code_info[0]['code'];
+        $data['password'] = md5($param['password']);//密码
+        $verify_password = $param['verify_password'];//确认密码
+        $pcre = '/^1[3456789]\d{9}$/';
+        if ($data['phone'] == '' || !preg_match_all($pcre, $data['phone'])) {
+            Response::error(-2, '手机号格式不正确');
+        }
+        $has = D('api_users')->where(array('phone' => $data['phone']))->find();
+        if ($has) {
+            Response::error(-7, '手机号已被注册');
+        }
+        if ($code === '') {
+            Response::error(-3, '验证码不能为空');
+        }
+        if ($code != $sys_code) {
+            Response::error(-4, '验证码错误');
+        }
+        if ($param['password'] === '') {
+            Response::error(-5, '密码不能为空');
+        }
+        if ($verify_password != $param['password']) {
+            Response::error(-6, '两次输入密码不一致');
+        }
+
+        //生成昵称
+        $common = new Common();
+        $data['username'] = $common->buildNickname();//用户昵称
+        $data['username'] = time();//添加时间
+        $res = D('api_users')->add($data);
+        if ($res) {
+            $info['userid'] = $res;
+            $info['type'] = 1;//身份状态1个人 2公司
+            $info['addtime'] = date('Y-m-d H:i:s', time());//添加时间
+            $insert = D('api_identity')->add($info);
+            if ($insert) {
+                D('api_phone_code')->where(array('id'=>$code_info[0]['id']))->delete();
+                $return['userid'] = $res;
+                $return['identity'] = 1;
+                $return['password'] = md5($param['password']);
+                $return['phone'] = $param['phone'];
+                $return['userphoto'] = D('api_users')->where(array('userid'=>$res))->getField('userphoto');
+                Response::success($return);
+            } else {
+                Response::error(-8, '身份注册失败');
+            }
+        } else {
+            Response::error(-1, '注册失败');
+        }
+    }
+
+    /**
+     * 公司注册
+     * @author: 李胜辉
+     * @time: 2018/12/20 11:34
+     *
+     */
+    public function companyRegister($param)
+    {
+        $data['userid'] = $param['userid'];//用户id
+        $data['type'] = 2;//身份状态1个人 2公司
+        $common = new Common();
+        $pic_path = $common->uploads(array('file_path' => 'company/businessLicense '));
+        $data['number'] = $pic_path['pic'];
+        $data['addtime'] = date('Y-m-d H:i:s', time());//添加时间
+        $res = D('api_identity')->add($data);
+        if ($res) {
+            $update = D('api_users')->where(array(array('userid'=>$res)))->save(array('identity'=>2));
+            $info = D('api_users')->where(array(array('userid'=>$res)))->find();
+            Response::success($info);
+        } else {
+            Response::error(-1, '注册失败');
+        }
+    }
+
+    /**
+     * 手机号登录
+     * @author: 李胜辉
+     * @time: 2018/12/20 11:34
      *
      */
     public function phoneLogin($param)
     {
-        $phone = $param['phone'];
-        $code = $param['code'];
+        $phone = $param['phone'];//手机号
+        $password = md5($param['password']);//密码
         $pcre = '/^1[3456789]\d{9}$/';
-        if($phone==''||!preg_match_all($pcre,$phone)){
-            Response::error(-1,'手机号格式不正确');
+        if ($phone == '' || !preg_match_all($pcre, $phone)) {
+            Response::error(-1, '手机号格式不正确');
         }
-        if($code===''){
-            Response::error(-3,'验证码不能为空');
+        if ($password === '') {
+            Response::error(-3, '请输入密码');
         }
-        if($code!=session('code')){
-            Response::error(-4,'验证码错误');
-        }
-        $res = D('api_users')->where(array('phone'=>$phone))->find();
+        $res = D('api_users')->where(array('phone' => $phone, 'password' => $password))->find();
         if ($res) {
             Response::success($res);
         } else {
-            Response::error(-1,'请注册');
+            Response::error(-1, '账号或密码错误!');
         }
     }
 
+    /**
+     * 忘记密码/修改密码
+     * @author: 李胜辉
+     * @time: 2018/12/20 11:34
+     *
+     */
+    public function forgetPassword($param)
+    {
+        $phone = $param['phone'];//手机号
+        $code = $param['code'];//用户输入的验证码
+        $code_info = D('api_phone_code')->where(array('phone' => $param['phone']))->limit(0, 1)->order('id desc')->select();//系统发送的验证码
+        $sys_code = $code_info[0]['code'];//系统发送的验证码
+        $data['password'] = md5($param['password']);//密码
+        $verify_password = $param['verify_password'];//确认密码
+        $pcre = '/^1[3456789]\d{9}$/';
+        if ($phone == '' || !preg_match_all($pcre, $phone)) {
+            Response::error(-2, '手机号格式不正确');
+        }
+        $has = D('api_users')->where(array('phone' => $phone))->find();
+        if (!$has) {
+            Response::error(-7, '手机号未注册');
+        }
+        if ($code === '') {
+            Response::error(-3, '验证码不能为空');
+        }
+        if ($code != $sys_code) {
+            Response::error(-4, '验证码错误');
+        }
+        $time = time();
+        $limit_time = 60 * 5 + $code_info[0]['add_time'];
+        if ($time > $limit_time) {
+            Response::error(-9, '验证码已过期');
+        }
+        if ($param['password'] === '') {
+            Response::error(-5, '密码不能为空');
+        }
+        if ($verify_password != $param['password']) {
+            Response::error(-6, '两次输入密码不一致');
+        }
+        $update = D('api_users')->where(array('phone' => $phone))->save($data);
+        if ($update) {
+            D('api_phone_code')->where(array('id'=>$code_info[0]['id']))->delete();
+            Response::success(array());
+        } else {
+            Response::error(-1, '修改失败');
+        }
 
+    }
+
+
+    /**
+     * 修改昵称
+     * @author: 李胜辉
+     * @time: 2018/12/20 11:34
+     *
+     */
+    public function editUserInfo($param)
+    {
+        $username = $param['username'];//用户名
+        $userid = $param['userid'];//用户id
+        if ($userid == '') {
+            Response::error(-2, '缺少参数');
+        }
+        $res = D('api_users')->where(array('userid' => $userid))->save(array('username' => $username));
+        if ($res) {
+            Response::success(array());
+        } else {
+            Response::error(-1, '修改失败');
+        }
+    }
+
+    /**
+     * 首页判断状态
+     * @author: 李胜辉
+     * @time: 2018/12/20 11:34
+     *
+     */
+    public function indexLoginStatus($param)
+    {
+        $phone = $param['phone'];//用户手机号
+        $password = $param['password'];//用户密码
+        $userid = $param['userid'];//用户id
+        $res = D('api_users')->where(array('userid' => $userid))->find();
+        if ($res) {
+            if ($phone == $res['phone'] && $password == $res['password']) {
+                Response::success($res);
+            } else {
+                Response::error(-2, '账号或密码错误');
+            }
+        } else {
+            Response::error(-1, '请注册');
+        }
+    }
 
     /*********************************************************************登录注册 结束*******************************************************/
     /**
@@ -512,23 +656,107 @@ class UserCenter extends Base
         } else {
             $user_id = $param['user_id'];//用户id
             $userphoto = $res;//头像url地址
-            if($user_id){
-                $update = D('api_users')->where(array('id'=>$user_id))->save(array('userphoto'=>$userphoto));
-                if($update){
-                    Response::success(array('update_num'=>$update));
-                }else{
+            if ($user_id) {
+                $update = D('api_users')->where(array('userid' => $user_id))->save(array('userphoto' => $userphoto));
+                if ($update) {
+                    Response::success(array());
+                } else {
                     Response::error(-1, '上传失败');
                 }
-            }else{
+            } else {
                 Response::error(-2, '缺少参数');
             }
         }
     }
 
+    /**
+     * 拨打企业招聘电话
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
 
-    /**********************************************************************获取微信手机号 开始**************************************************************/
+    public function getPhone($param)
+    {
+        $id = $param['id'];//招聘id
+        $data['userid'] = $param['userid'] ? $param['userid'] : '';
+        $data['identity'] = $param['identity'] ? $param['identity'] : '1';
+        $time = time();
+        $data['add_time'] = date('Y-m-d H:i:s', $time);
+        $limit_num = 5;//限制次数
+        if ($param['userid'] != '' && $param['identity'] != '') {
+            $where['userid'] = $param['userid'];
+            $where['identity'] = $param['identity'];
+            $date = date('Y-m-d', $time);
+            $where['_string'] = 'date_format(add_time, "%Y-%m-%d")="' . $date . '"';
+            $call_num = D('api_call_records')->where($where)->count();//当天打电话次数
+            $share_num = D('api_share')->where($where)->count();//当天分享次数
+            $total = $call_num + $share_num;
+            if ($total > $limit_num) {
+                Response::error(-2, '每天最多拨打' . $limit_num . '次,请通过分享来获得更多拨打机会');
+            }
+        }
+        $phone = D('api_recruitment')->where(array('id' => $id))->getField('phone');
+        if ($phone) {
+            $res = D('api_call_records')->add($data);
+            if($res){
+                Response::success(array('phone' => $phone));
+            }else{
+                Response::error(-2, '出错了');
+            }
+
+        } else {
+            Response::error(-1, '未查到');
+        }
+    }
+    /**
+     * 分享
+     * @author: 李胜辉
+     * @time: 2018/12/17 11:34
+     *
+     */
+
+    public function share($param)
+    {
+        $data['userid'] = $param['userid'] ? $param['userid'] : '';//用户id
+        $data['identity'] = $param['identity'] ? $param['identity'] : '';//身份(1:个人;2:公司)
+        $time = time();
+        $data['add_time'] = date('Y-m-d H:i:s', $time);
+        $res = D('api_share')->add($data);
+        if ($res) {
+            Response::setSuccessMsg('分享成功');
+            Response::success(array());
+        } else {
+            Response::error(-1, '未查到');
+        }
+    }
+
+    /**
+     * 身份切换
+     * @author: 李胜辉
+     * @time: 2018/12/124 11:34
+     *
+     */
+    public function cutIdentity($param){
+        $userid=$param['userid'];//用户id
+        $identity=$param['identity'];//身份1:个人;2:公司
+        if(!$userid){
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少userid');
+        }
+        $data['identity']=$identity;
+        $has = D('api_identity')->where(array('userid' => $userid,'type'=>$identity))->getField('id');
+        if($has){
+            $res=D('ApiUsers')->where(array('userid' => $userid))->save($data);
+            if($res!==false){
+                Response::setSuccessMsg('切换成功');
+                Response::success(array('status'=>1,'identity'=>$identity));
+            }else{
+                Response::error(-2,'出错了');
+            }
+        }else{
+            Response::error(-1,'请注册',array('status'=>0));
+        }
+    }
 
 
-
-    /**********************************************************************获取微信手机号 结束**************************************************************/
 }
