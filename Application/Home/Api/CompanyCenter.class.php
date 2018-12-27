@@ -30,7 +30,7 @@ class CompanyCenter extends Base
             Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
 
-        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as c on c.identity_id=i.id')->join('left join api_r_position as d on d.id=c.industry_id')->field('i.id,i.realname,i.is_deposit,i.userid,u.identity,u.userphoto,d.position_name,c.logo')->where(['i.type' => 2, 'i.userid' => $userid])->find();
+        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_company_info as c on c.identity_id=i.id')->join('left join api_industry as d on d.id=c.industry_id')->field('i.id,i.is_deposit,i.userid,u.identity,u.userphoto,d.industry_name,c.com_name,c.logo')->where(['i.type' => 2, 'i.userid' => $userid])->find();
         if (empty($user_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -73,50 +73,37 @@ class CompanyCenter extends Base
         $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
         //添加公司信息表api_company_info记录
         $com_data['identify_id'] = $identity_id;
+        $com_data['com_name'] = $param['com_name'];//公司名称
         $com_data['intro'] = $param['intro'];
         $com_data['industry_id'] = $param['industry_id'];
-        $arr_uploads = $this->upload(array('file_path' => 'company'));
-        $com_data['logo'] = $arr_uploads['logo'];
+        $com_data['logo'] = $param['logo'];
         $com_data['phone'] = $param['phone'];
         $com_data['address'] = $param['address'];
         $com_data['add_time'] = date('Y-m-d H:i:s', time());
         $res = D('api_company_info')->add($com_data);
         //添加优惠信息记录
-        $discounts['title'] = $param['title'];//标题
-        $discounts['content'] = $param['content'];//内容
-        $discounts['pic'] = $arr_uploads['pic'];//优惠图片
+        $com_discounts = json_decode($param['com_discounts'],TRUE);
         $time = date('Y-m-d H:i:s', time());
-        if ($discounts) {
-            foreach ($discounts as $key => $value) {
-                if (is_array($value)) {
-                    foreach ($value as $k => $v) {
-                        $arr_dis[$k][$key] = $v;
-                        $arr_dis[$k]['add_time'] = $time;
-                        $arr_dis[$k]['identity_id'] = $identity_id;
-                    }
-                    unset($k, $v);
-                }
+        if ($com_discounts) {
+            foreach ($com_discounts as $key => $value) {
+                $com_discounts[$key]['add_time'] = $time;
+                $com_discounts[$key]['identity_id'] = $identity_id;
+                $com_discounts[$key]['pic'] = substr($com_discounts[$key]['pic'],0,-1);
             }
             unset($key, $value);
         }
-        $dis_res = D('api_company_discounts')->addAll($arr_dis);
+        $dis_res = D('api_company_discounts')->addAll($com_discounts);
         //添加服务项目
-        $item_info['item_name'] = $param['item_name'];//服务项目名称
-        $item_info['pic'] = $arr_uploads['item_pic'];//服务项目图片
-        if ($item_info) {
-            foreach ($item_info as $key => $value) {
-                if (is_array($value)) {
-                    foreach ($value as $k => $v) {
-                        $item_data[$k][$key] = $v;
-                        $item_data[$k]['add_time'] = $time;
-                        $item_data[$k]['identity_id'] = $identity_id;
-                    }
-                    unset($k, $v);
-                }
+        $com_item = json_decode($param['com_item'],TRUE);
+        if ($com_item) {
+            foreach ($com_item as $key => $value) {
+                $com_item[$key]['add_time'] = $time;
+                $com_item[$key]['identity_id'] = $identity_id;
+                $com_item[$key]['pic'] = substr($com_item[$key]['pic'],0,-1);
             }
             unset($key, $value);
         }
-        $item_res = D('api_company_item')->addAll($item_data);
+        $item_res = D('api_company_item')->addAll($com_item);
         if ($res) {
             if ($dis_res) {
                 if ($item_res) {
@@ -149,60 +136,36 @@ class CompanyCenter extends Base
         $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
         //添加公司信息表api_company_info记录
         $com_data['intro'] = $param['intro'];
+        $com_data['com_name'] = $param['com_name'];//公司名称
         $com_data['industry_id'] = $param['industry_id'];
-        $arr_uploads = $this->upload(array('file_path' => 'company'));
-        $com_data['logo'] = $arr_uploads['logo'];
+        $com_data['logo'] = $param['logo'];
         $com_data['phone'] = $param['phone'];
         $com_data['address'] = $param['address'];
         $res = D('api_company_info')->where(array('industry_id' => $identity_id))->save($com_data);
         //编辑优惠信息记录
-        $discounts['title'] = $param['title'];//标题
-        $discounts['content'] = $param['content'];//内容
-        $discounts['pic'] = $arr_uploads['pic'];//优惠图片
-        if ($discounts) {
-            foreach ($discounts as $key => $value) {
-                if (is_array($value)) {
-                    foreach ($value as $k => $v) {
-                        $arr_dis[$k][$key] = $v;
-                    }
-                    unset($k, $v);
+        $com_discounts = json_decode($param['com_discounts'],TRUE);
+        if ($com_discounts) {
+            foreach ($com_discounts as $key => $value) {
+                $com_discounts[$key]['pic'] = str_replace(';','',$com_discounts[$key]['pic']);
+                $update = D('api_company_discounts')->save($com_discounts[$key]);
+                if ($update === false) {
+                    Response::error(-2, '出错了');
                 }
             }
             unset($key, $value);
-            if ($arr_dis) {
-                foreach ($arr_dis as $key => $value) {
-                    $update = D('api_company_discounts')->save($arr_dis[$key]);
-                    if ($update === false) {
-                        Response::error(-2, '出错了');
-                    }
-                }
-                unset($value, $key);
-            }
         }
         //添加服务项目
-        $item_info['item_name'] = $param['item_name'];//服务项目名称
-        $item_info['pic'] = $arr_uploads['item_pic'];//服务项目图片
-        if ($item_info) {
-            foreach ($item_info as $key => $value) {
-                if (is_array($value)) {
-                    foreach ($value as $k => $v) {
-                        $item_data[$k][$key] = $v;
-                    }
-                    unset($k, $v);
+        $com_item = json_decode($param['com_item'],TRUE);
+        if ($com_item) {
+            foreach ($com_item as $key => $value) {
+                $com_item[$key]['pic'] = str_replace(';','',$com_item[$key]['pic']);
+                $set = D('api_company_item')->save($com_item[$key]);
+                if ($set === false) {
+                    Response::error(-2, '出错了');
                 }
             }
             unset($key, $value);
-            if ($item_data) {
-                foreach ($item_data as $key => $value) {
-                    $update = D('api_company_discounts')->save($item_data[$key]);
-                    if ($update === false) {
-                        Response::error(-2, '出错了');
-                    }
-                }
-                unset($value, $key);
-            }
         }
-
         if ($res) {
             Response::setSuccessMsg('修改成功');
             Response::success(array());

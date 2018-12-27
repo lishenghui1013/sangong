@@ -32,7 +32,8 @@ class UserCenter extends Base
         if (!$userid) {
             Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
         }
-        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->join('left join api_resume as r on r.userid=i.userid')->join('left join api_r_position as p on p.id=r.position_id')->field('i.id,u.username,i.is_deposit,i.userid,u.identity,p.position_name,u.userphoto')->where(['i.type' => 1, 'i.userid' => $userid])->find();
+        $user_info = D('ApiIdentity as i')->join('left join api_users as u on u.userid=i.userid')->field('i.id,u.username,i.is_deposit,i.userid,u.identity,u.userphoto')->where(['i.type' => 1, 'i.userid' => $userid])->find();
+        $user_info['position_name'] = D('api_resume as r')->join('left join api_r_position as p on p.id=r.position_id')->where(array('r.userid'=>$userid,'r.isdefault'=>1))->getField('p.position_name');
         if (empty($user_info)) {
             Response::error(-1, '暂无数据');
         }
@@ -506,9 +507,7 @@ class UserCenter extends Base
     {
         $data['userid'] = $param['userid'];//用户id
         $data['type'] = 2;//身份状态1个人 2公司
-        $common = new Common();
-        $pic_path = $common->uploads(array('file_path' => 'company/businessLicense '));
-        $data['number'] = $pic_path['pic'];
+        $data['number'] = $param['filePath'];//图片路径
         $data['addtime'] = date('Y-m-d H:i:s', time());//添加时间
         $res = D('api_identity')->add($data);
         if ($res) {

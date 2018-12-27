@@ -68,17 +68,16 @@ class Common extends Base
                     $info = substr(trim($info), 2);
                 }
                 unset($key, $value);
-                $info = substr(trim($info), 0, -1);
                 return $info;
             } else {
                 $a = $upload->getError();//获取失败信息
                 Response::error(-2, $a);
             }
-
         } else {
             Response::error(-1, '请选择文件');
         }
     }
+
     /**
      * 文件上传方法
      * @author: 李胜辉
@@ -117,6 +116,7 @@ class Common extends Base
         }
         return $return;
     }
+
 
     /**
      * 行业/职位列表
