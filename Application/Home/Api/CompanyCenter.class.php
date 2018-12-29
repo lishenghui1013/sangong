@@ -72,50 +72,145 @@ class CompanyCenter extends Base
         $id = $param['userid'];
         $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
         //添加公司信息表api_company_info记录
-        $com_data['identify_id'] = $identity_id;
+        $com_data['identity_id'] = $identity_id;
         $com_data['com_name'] = $param['com_name'];//公司名称
         $com_data['intro'] = $param['intro'];
         $com_data['industry_id'] = $param['industry_id'];
-        $com_data['logo'] = $param['logo'];
+        $com_data['logo'] = substr($param['logo'], 0, -1);
         $com_data['phone'] = $param['phone'];
         $com_data['address'] = $param['address'];
         $com_data['add_time'] = date('Y-m-d H:i:s', time());
         $res = D('api_company_info')->add($com_data);
-        //添加优惠信息记录
-        $com_discounts = json_decode($param['com_discounts'],TRUE);
-        $time = date('Y-m-d H:i:s', time());
-        if ($com_discounts) {
-            foreach ($com_discounts as $key => $value) {
-                $com_discounts[$key]['add_time'] = $time;
-                $com_discounts[$key]['identity_id'] = $identity_id;
-                $com_discounts[$key]['pic'] = substr($com_discounts[$key]['pic'],0,-1);
-            }
-            unset($key, $value);
-        }
-        $dis_res = D('api_company_discounts')->addAll($com_discounts);
+
+        /*//添加优惠信息记录
+        $dis_param['identity_id'] = $identity_id;
+        $dis_param['title'] = $param['title'];//优惠标题
+        $dis_param['content'] = $param['content'];//优惠内容
+        $dis_param['add_time'] = $com_data['add_time'];
+        $dis_param['file_path'] = 'company/discounts';
+        $common = new Common();
+        $dis_comm = $common->uploadsTeamDiscounts($dis_param);
         //添加服务项目
-        $com_item = json_decode($param['com_item'],TRUE);
-        if ($com_item) {
-            foreach ($com_item as $key => $value) {
-                $com_item[$key]['add_time'] = $time;
-                $com_item[$key]['identity_id'] = $identity_id;
-                $com_item[$key]['pic'] = substr($com_item[$key]['pic'],0,-1);
-            }
-            unset($key, $value);
-        }
-        $item_res = D('api_company_item')->addAll($com_item);
+        $com_item['identity_id'] = $identity_id;
+        $com_item['item_name'] = $param['item_name'];//项目名称
+        $com_item['file_path'] = 'company/item';
+        $item_comm = $common->uploadsTeamItem($com_item);*/
         if ($res) {
-            if ($dis_res) {
-                if ($item_res) {
+            /*if ($dis_comm) {
+                if ($item_comm) {
                     Response::success(array());
                 } else {
                     Response::error(-2, '服务项目添加失败!');
                 }
             } else {
                 Response::error(-3, '优惠信息添加失败!');
-            }
+            }*/
+            Response::setSuccessMsg('添加成功');
+            Response::success(array());
         } else {
             Response::error(-1, '添加失败!');
+        }
+    }
+
+    /**
+     * 上传优惠信息
+     * @author: 李胜辉
+     * @time: 2018/12/01 11:34
+     */
+    public function uploadDiscounts($param)
+    {
+
+        $path = $param['file_path'];//子文件夹
+        $upload = new \Think\Upload();   // 实例化上传类
+        $upload->maxSize = 314572800000;    // 设置附件上传大小
+        /*$upload->exts = array('jpg', 'gif', 'png', 'jpeg'); // 设置附件上传类型*/
+        $upload->rootPath = THINK_PATH;          // 设置附件上传根目录
+        $upload->savePath = '../Public/uploads/';    // 设置附件上传（子）目录
+        $upload->subName = $path;  //子文件夹
+        $upload->replace = true;  //同名文件是否覆盖
+        // 上传文件
+        $id = $param['userid'];//用户id
+        $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        /*$all_data = array();*/
+        $dis_param['identity_id'] = $identity_id;
+        $dis_param['add_time'] = date('Y-m-d H:i:s', time());//添加时间;
+        $res_info = $upload->upload();
+        if ($res_info) {
+            $info = '';
+            foreach ($res_info as $keys => $tepimg) {
+                $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
+                $dis_param['pic'] = $info;
+                $dis_param['title'] = $param['title'];//优惠标题
+                $dis_param['content'] = $param['content'];//优惠内容
+            }
+            unset($keys, $tepimg);
+        }
+
+
+        /*foreach ($_FILES as $key => $value) {
+            $temp = array();
+            $temp[$key] = $_FILES[$key];
+            if($key=='pic'){
+                $res_info = $upload->upload($temp);
+                if ($res_info) {
+                    $info = '';
+                    foreach ($res_info as $keys => $tepimg) {
+                        $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
+                        $dis_param['pic']=$info;
+                        $dis_param['title'] = $param['title'][$keys];//优惠标题
+                        $dis_param['content'] = $param['content'][$keys];//优惠内容
+                        $all_data[] = $dis_param;
+                    }
+                    unset($keys, $tepimg);
+                }
+            }
+        }
+        unset($key, $value);*/
+
+        $res = D('api_company_discounts')->add($dis_param);
+        if ($res === false) {
+            Response::error(-1, '优惠信息添加失败');
+        }else{
+            Response::success(array());
+        }
+    }
+
+    /**
+     * 上传服务项目
+     * @author: 李胜辉
+     * @time: 2018/12/29 11:34
+     */
+    public function uploadItem($param)
+    {
+        $path = $param['file_path'];//子文件夹
+        $upload = new \Think\Upload();   // 实例化上传类
+        $upload->maxSize = 314572800000;    // 设置附件上传大小
+        /*$upload->exts = array('jpg', 'gif', 'png', 'jpeg'); // 设置附件上传类型*/
+        $upload->rootPath = THINK_PATH;          // 设置附件上传根目录
+        $upload->savePath = '../Public/uploads/';    // 设置附件上传（子）目录
+        $upload->subName = $path;  //子文件夹
+        $upload->replace = true;  //同名文件是否覆盖
+        // 上传文件
+        $id = $param['userid'];//用户id
+        $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        $dis_param['identity_id'] = $identity_id;
+        $dis_param['add_time'] = date('Y-m-d H:i:s', time());//添加时间;
+        $res_info = $upload->upload();
+        if ($res_info) {
+            $info = '';
+            foreach ($res_info as $keys => $tepimg) {
+                $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
+                $dis_param['pic'] = $info;
+                $dis_param['item_name'] = $param['item_name'][$keys];//服务项目名称
+                $dis_param['content'] = $param['content'][$keys];//优惠内容
+            }
+            unset($keys, $tepimg);
+        }
+        $res = D('api_company_item')->add($dis_param);
+        if ($res === false) {
+            Response::error(-1, '服务项目添加失败');
+        }else{
+            Response::success(array());
         }
     }
 
@@ -143,10 +238,10 @@ class CompanyCenter extends Base
         $com_data['address'] = $param['address'];
         $res = D('api_company_info')->where(array('industry_id' => $identity_id))->save($com_data);
         //编辑优惠信息记录
-        $com_discounts = json_decode($param['com_discounts'],TRUE);
+        $com_discounts = json_decode($param['com_discounts'], TRUE);
         if ($com_discounts) {
             foreach ($com_discounts as $key => $value) {
-                $com_discounts[$key]['pic'] = str_replace(';','',$com_discounts[$key]['pic']);
+                $com_discounts[$key]['pic'] = str_replace(';', '', $com_discounts[$key]['pic']);
                 $update = D('api_company_discounts')->save($com_discounts[$key]);
                 if ($update === false) {
                     Response::error(-2, '出错了');
@@ -155,10 +250,10 @@ class CompanyCenter extends Base
             unset($key, $value);
         }
         //添加服务项目
-        $com_item = json_decode($param['com_item'],TRUE);
+        $com_item = json_decode($param['com_item'], TRUE);
         if ($com_item) {
             foreach ($com_item as $key => $value) {
-                $com_item[$key]['pic'] = str_replace(';','',$com_item[$key]['pic']);
+                $com_item[$key]['pic'] = str_replace(';', '', $com_item[$key]['pic']);
                 $set = D('api_company_item')->save($com_item[$key]);
                 if ($set === false) {
                     Response::error(-2, '出错了');

@@ -98,6 +98,7 @@ class Common extends Base
         // 上传文件
         $return = array();
         if ($_FILES) {
+
             foreach ($_FILES as $key => $value) {
                 $temp = array();
                 $temp[$key] = $_FILES[$key];
@@ -117,7 +118,89 @@ class Common extends Base
         return $return;
     }
 
-
+    /**
+     * 文件上传方法(上传文件多个文件字段上传多张图片)
+     * @author: 李胜辉
+     * @time: 2018/12/24 16:34
+     * @param: $files  $_FILES
+     * @param: $path string 路径
+     */
+    public function uploadsTeamDiscounts($param)
+    {
+        $path = $param['file_path'];
+        $upload = new \Think\Upload();   // 实例化上传类
+        $upload->maxSize = 314572800000;    // 设置附件上传大小
+        /*$upload->exts = array('jpg', 'gif', 'png', 'jpeg'); // 设置附件上传类型*/
+        $upload->rootPath = THINK_PATH;          // 设置附件上传根目录
+        $upload->savePath = '../Public/uploads/';    // 设置附件上传（子）目录
+        $upload->subName = $path;  //子文件夹
+        $upload->replace = true;  //同名文件是否覆盖
+        // 上传文件
+        $all_data = array();
+        $dis_param['identity_id'] = $param['identity_id'];
+        $dis_param['add_time'] = $param['add_time'];
+        if ($_FILES['pic']) {
+            $res_info = $upload->upload($_FILES['pic']);
+            if ($res_info) {
+                $info = '';
+                foreach ($res_info as $keys => $tepimg) {
+                    $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
+                    $dis_param['pic']=$info;
+                    $dis_param['title'] = $param['title'][$keys];
+                    $dis_param['content'] = $param['content'][$keys];
+                    $all_data[] = $dis_param;
+                }
+                unset($keys, $tepimg);
+            }
+        }
+        $res = D('api_company_info')->addAll($all_data);
+        if($res){
+            return true;
+        }else{
+            return false;
+        }
+    }
+    /**
+     * 文件上传方法(上传公司服务项目)
+     * @author: 李胜辉
+     * @time: 2018/12/24 16:34
+     * @param: $files  $_FILES
+     * @param: $path string 路径
+     */
+    public function uploadsTeamItem($param)
+    {
+        $path = $param['file_path'];
+        $upload = new \Think\Upload();   // 实例化上传类
+        $upload->maxSize = 314572800000;    // 设置附件上传大小
+        /*$upload->exts = array('jpg', 'gif', 'png', 'jpeg'); // 设置附件上传类型*/
+        $upload->rootPath = THINK_PATH;          // 设置附件上传根目录
+        $upload->savePath = '../Public/uploads/';    // 设置附件上传（子）目录
+        $upload->subName = $path;  //子文件夹
+        $upload->replace = true;  //同名文件是否覆盖
+        // 上传文件
+        $all_data = array();
+        $dis_param['identity_id'] = $param['identity_id'];
+        $dis_param['add_time'] = $param['add_time'];
+        if ($_FILES['pic']) {
+            $res_info = $upload->upload($_FILES['pic']);
+            if ($res_info) {
+                $info = '';
+                foreach ($res_info as $keys => $tepimg) {
+                    $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
+                    $dis_param['pic']=$info;
+                    $dis_param['item_name'] = $param['item_name'][$keys];
+                    $all_data[] = $dis_param;
+                }
+                unset($keys, $tepimg);
+            }
+        }
+        $res = D('api_company_item')->addAll($all_data);
+        if($res){
+            return true;
+        }else{
+            return false;
+        }
+    }
     /**
      * 行业/职位列表
      * @author: 李胜辉
@@ -133,11 +216,11 @@ class Common extends Base
         $list = D('api_r_position')->field('id,pid,position_name,addtime,dataflag')->where($where)->order('id asc')->select();
         if (empty($list)) {
             Response::error(-1, '暂无数据');
-        }else{
-            foreach($list as $key=>$value){
-                $list[$key]['position'] = D('api_r_position')->where(array('pid'=>$value['id'],'dataflag'=>1))->field('id,pid,position_name,addtime,dataflag')->select();
+        } else {
+            foreach ($list as $key => $value) {
+                $list[$key]['position'] = D('api_r_position')->where(array('pid' => $value['id'], 'dataflag' => 1))->field('id,pid,position_name,addtime,dataflag')->select();
             }
-            unset($key,$vlaue);
+            unset($key, $vlaue);
             Response::success($list);
         }
 
@@ -159,9 +242,9 @@ class Common extends Base
             $data['phone'] = $phone;
             $data['add_time'] = time();
             $add = D('api_phone_code')->add($data);
-            if($add){
-                Response::success(array('code'=>$code));
-            }else{
+            if ($add) {
+                Response::success(array('code' => $code));
+            } else {
                 Response::error(-2, '发生错误');
             }
         } else {
