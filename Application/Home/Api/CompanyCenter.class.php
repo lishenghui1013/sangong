@@ -48,10 +48,16 @@ class CompanyCenter extends Base
     public function industryList()
     {
         $list = D('api_r_position')->field('id,position_name,addtime')->where(array('dataflag' => 1, 'pid' => 0))->select();
-        if (empty($list)) {
+        if($list){
+            foreach($list as $key=>$value){
+                $list[$key]['index'] = $key;
+            }
+            unset($key,$value);
+            Response::success($list);
+        }else{
             Response::error(-1, '暂无数据');
         }
-        Response::success($list);
+
     }
 
     /**
@@ -76,35 +82,13 @@ class CompanyCenter extends Base
         $com_data['com_name'] = $param['com_name'];//公司名称
         $com_data['intro'] = $param['intro'];
         $com_data['industry_id'] = $param['industry_id'];
-        $com_data['logo'] = substr($param['logo'], 0, -1);
+        $com_data['logo'] = $param['logo'];
         $com_data['phone'] = $param['phone'];
         $com_data['address'] = $param['address'];
         $com_data['add_time'] = date('Y-m-d H:i:s', time());
         $res = D('api_company_info')->add($com_data);
 
-        /*//添加优惠信息记录
-        $dis_param['identity_id'] = $identity_id;
-        $dis_param['title'] = $param['title'];//优惠标题
-        $dis_param['content'] = $param['content'];//优惠内容
-        $dis_param['add_time'] = $com_data['add_time'];
-        $dis_param['file_path'] = 'company/discounts';
-        $common = new Common();
-        $dis_comm = $common->uploadsTeamDiscounts($dis_param);
-        //添加服务项目
-        $com_item['identity_id'] = $identity_id;
-        $com_item['item_name'] = $param['item_name'];//项目名称
-        $com_item['file_path'] = 'company/item';
-        $item_comm = $common->uploadsTeamItem($com_item);*/
         if ($res) {
-            /*if ($dis_comm) {
-                if ($item_comm) {
-                    Response::success(array());
-                } else {
-                    Response::error(-2, '服务项目添加失败!');
-                }
-            } else {
-                Response::error(-3, '优惠信息添加失败!');
-            }*/
             Response::setSuccessMsg('添加成功');
             Response::success(array());
         } else {
@@ -131,6 +115,7 @@ class CompanyCenter extends Base
         // 上传文件
         $id = $param['userid'];//用户id
         $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        $del = D('api_company_discounts')->where(array('identity_id'=>$identity_id))->delete();
         /*$all_data = array();*/
         $dis_param['identity_id'] = $identity_id;
         $dis_param['add_time'] = date('Y-m-d H:i:s', time());//添加时间;
@@ -138,41 +123,20 @@ class CompanyCenter extends Base
         if ($res_info) {
             $info = '';
             foreach ($res_info as $keys => $tepimg) {
-                $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
+                $info =  'https://san.keyitongxin.com'.preg_replace('/^../', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
                 $dis_param['pic'] = $info;
                 $dis_param['title'] = $param['title'];//优惠标题
                 $dis_param['content'] = $param['content'];//优惠内容
             }
             unset($keys, $tepimg);
         }
-
-
-        /*foreach ($_FILES as $key => $value) {
-            $temp = array();
-            $temp[$key] = $_FILES[$key];
-            if($key=='pic'){
-                $res_info = $upload->upload($temp);
-                if ($res_info) {
-                    $info = '';
-                    foreach ($res_info as $keys => $tepimg) {
-                        $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
-                        $dis_param['pic']=$info;
-                        $dis_param['title'] = $param['title'][$keys];//优惠标题
-                        $dis_param['content'] = $param['content'][$keys];//优惠内容
-                        $all_data[] = $dis_param;
-                    }
-                    unset($keys, $tepimg);
-                }
+            $res = D('api_company_discounts')->add($dis_param);
+            if ($res === false) {
+                Response::error(-1, '优惠信息添加失败');
+            } else {
+                Response::success(array());
             }
-        }
-        unset($key, $value);*/
 
-        $res = D('api_company_discounts')->add($dis_param);
-        if ($res === false) {
-            Response::error(-1, '优惠信息添加失败');
-        }else{
-            Response::success(array());
-        }
     }
 
     /**
@@ -193,25 +157,28 @@ class CompanyCenter extends Base
         // 上传文件
         $id = $param['userid'];//用户id
         $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        $del = D('api_company_item')->where(array('identity_id'=>$identity_id))->delete();
         $dis_param['identity_id'] = $identity_id;
         $dis_param['add_time'] = date('Y-m-d H:i:s', time());//添加时间;
         $res_info = $upload->upload();
         if ($res_info) {
             $info = '';
             foreach ($res_info as $keys => $tepimg) {
-                $info = preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
+                $info =  'https://san.keyitongxin.com'.preg_replace('/^../', '', $tepimg['savepath']) . $tepimg['savename'];//拼接图片地址
                 $dis_param['pic'] = $info;
                 $dis_param['item_name'] = $param['item_name'][$keys];//服务项目名称
                 $dis_param['content'] = $param['content'][$keys];//优惠内容
             }
             unset($keys, $tepimg);
         }
-        $res = D('api_company_item')->add($dis_param);
-        if ($res === false) {
-            Response::error(-1, '服务项目添加失败');
-        }else{
-            Response::success(array());
-        }
+            $res = D('api_company_item')->add($dis_param);
+            if ($res === false) {
+                Response::error(-1, '服务项目添加失败');
+            } else {
+                Response::success(array());
+            }
+
+
     }
 
     /**
@@ -229,6 +196,7 @@ class CompanyCenter extends Base
     {
         $id = $param['userid'] ? $param['userid'] : '';
         $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+
         //添加公司信息表api_company_info记录
         $com_data['intro'] = $param['intro'];
         $com_data['com_name'] = $param['com_name'];//公司名称
@@ -278,12 +246,12 @@ class CompanyCenter extends Base
     public function getEditCompanyInfo($param)
     {
         $id = $param['userid'] ? $param['userid'] : '';
-        $identify_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
-        $res['company_info'] = D('api_company_info')->where(array('industry_id' => $identify_id))->find();
+        $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        $res['company_info'] = D('api_company_info')->where(array('industry_id' => $identity_id))->find();
         //编辑优惠信息记录
-        $res['company_discounts'] = D('api_company_discounts')->where(array('industry_id' => $identify_id))->select();
+        $res['company_discounts'] = D('api_company_discounts')->where(array('industry_id' => $identity_id))->select();
         //编辑服务项目
-        $res['company_discounts'] = D('api_company_item')->where(array('industry_id' => $identify_id))->select();
+        $res['company_item'] = D('api_company_item')->where(array('industry_id' => $identity_id))->select();
         if ($res) {
             Response::success($res);
         } else {
@@ -466,13 +434,10 @@ class CompanyCenter extends Base
      */
     public function companyDetail($param)
     {
-        $id = $param['id'];//公司id
-        $res = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->join('left join api_r_position as d on d.id=c.industry_id')->field('c.intro,c.id,c.identity_id,c.industry_id,c.logo,c.phone,c.address,i.realname,i.is_deposit,d.industry_name')->where(array('c.id' => $id))->find();
-        if ($res) {
-            Response::success($res);
-        } else {
-            Response::error(-1, '暂无数据!');
-        }
+        $userid = $param['id'];//userid
+        $id = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->where(array('i.userid' => $userid, 'i.type' => 2))->getField('c.id');
+        $res = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->join('left join api_industry as d on d.id=c.industry_id')->field('c.intro,c.id,c.identity_id,c.com_name,c.industry_id,c.logo,c.phone,c.address,i.is_deposit,d.industry_name')->where(array('c.id' => $id))->find();
+        return $res;
     }
 
     /**
@@ -486,14 +451,11 @@ class CompanyCenter extends Base
         $pagenum = $param['pagenum'] ? $param['pagenum'] : 1;//当前页
         $limit = $param['limit'] ? $param['limit'] : 10;//每页显示条数
         $start = ($pagenum - 1) * $limit;
-        $id = $param['id'];//公司id
+        $userid = $param['id'];//userid
+        $id = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->where(array('i.userid' => $userid, 'i.type' => 2))->getField('c.id');
         $identiry_id = D('api_company_info')->where(array('id' => $id))->getField('identity_id');
         $res = D('api_company_item')->field('id,item_name,pic')->where(array('identity_id' => $identiry_id))->limit($start, $limit)->select();
-        if ($res) {
-            Response::success($res);
-        } else {
-            Response::error(-1, '暂无数据!');
-        }
+        return $res;
     }
 
     /**
@@ -504,7 +466,8 @@ class CompanyCenter extends Base
      */
     public function discountsList($param)
     {
-        $id = $param['id'] ? $param['id'] : '';//公司id
+        $userid = $param['id'] ? $param['id'] : '';//用户id
+        $id = D('api_company_info as c')->join('left join api_identity as i on i.id=c.identity_id')->where(array('i.userid' => $userid, 'i.type' => 2))->getField('c.id');
         $pagenum = $param['pagenum'] ? $param['pagenum'] : 1;//当前页
         $limit = $param['limit'] ? $param['limit'] : 10;//每页显示条数
         $start = ($pagenum - 1) * $limit;
@@ -516,11 +479,7 @@ class CompanyCenter extends Base
             $limit = $total;
         }
         $res = D('api_company_discounts as c')->join('left join api_identity as i on i.id=c.identity_id')->field('c.id,c.identity_id,c.title,c.content,c.pic,c.add_time,i.realname,i.userid')->where($where)->limit($start, $limit)->select();
-        if ($res) {
-            Response::success($res);
-        } else {
-            Response::error(-1, '暂无数据!');
-        }
+        return $res;
     }
 
     /**
@@ -612,7 +571,7 @@ class CompanyCenter extends Base
                 if ($res_info) {
                     $info = '';
                     foreach ($res_info as $keys => $tepimg) {
-                        $info .= preg_replace('/^..\//', '', $tepimg['savepath']) . $tepimg['savename'] . ';';//拼接图片地址
+                        $info .=  'https://san.keyitongxin.com'.preg_replace('/^../', '', $tepimg['savepath']) . $tepimg['savename'] . ';';//拼接图片地址
                     }
                     unset($keys, $tepimg);
                     $info = substr($info, 0, -1);
@@ -622,6 +581,100 @@ class CompanyCenter extends Base
             unset($key, $value);
         }
         return $return;
+    }
+
+    /**
+     * 商家信息页
+     * @author: 李胜辉
+     * @time: 2019/01/03 11:34
+     * @param:int userid 用户id
+     */
+    public function sellerInfo($param)
+    {
+        $userid = $param['id'];//用户id
+        if (!$userid) {
+            Response::error(ReturnCode::EMPTY_PARAMS, '缺少参数');
+        }
+        $com_info = $this->companyDetail($param);
+        $com_discounts = $this->discountsList($param);
+        $com_item = $this->serviceItemList($param);
+        $info = array();
+        $info['com_info'] = $com_info;
+        $info['com_discounts'] = $com_discounts;
+        $info['com_item'] = $com_item;
+        $list = D('api_recruitment as r')->join('left join api_areas as a on a.code=r.area')->join('left join api_identity as i on i.userid=r.userid')->field('r.id,r.title,r.wage,r.payment_type,r.recruitment_num,r.worked_years,r.education,r.addtime,a.region,i.is_deposit')->where(array('r.userid' => $userid))->select();
+        if ($list) {
+            foreach ($list as $key => $value) {
+                //发布时间
+                $list[$key]['addtime'] = date('Y-m-d', $value['addtime']);
+                //日结/月结
+                switch ($value['payment_type']) {
+                    case '0':
+                    case '1':
+                        $list[$key]['payment'] = '日结';//日结
+                        break;
+                    case '2':
+                    case '3':
+                        $list[$key]['payment'] = '月结';//月结
+                        break;
+                    default :
+                        $list[$key]['payment'] = '未知';//未知
+                        break;
+                }
+
+            }
+            unset($key, $value);
+        }
+        $info['com_recruit'] = $list;
+        return $info;
+    }
+
+    /**
+     * 添加/编辑公司信息
+     * @author: 李胜辉
+     * @time: 2019/01/03 11:34
+     * @param:int userid 用户id
+     */
+    public function addAndEditCompanyInfo($param)
+    {
+        $id = $param['userid'];//用户id
+        $identity_id = D('api_identity')->where(array('userid' => $id, 'type' => 2))->getField('id');
+        $com_id = D('api_company_info')->where(array('identity_id'=>$identity_id))->getField('id');
+        if (!$com_id) {
+            $id = $com_id;//公司id
+            //添加公司信息表api_company_info记录
+            $com_data['intro'] = $param['intro'];//公司简介
+            $com_data['com_name'] = $param['com_name'];//公司名称
+            $com_data['industry_id'] = $param['industry_id'];//行业id
+            $com_data['logo'] = str_replace(';', '', $param['logo']);//公司logo
+            $com_data['phone'] = $param['phone'];//手机号
+            $com_data['address'] = $param['address'];//地址
+            $update_res = D('api_company_info')->where(array('id' => $id))->save($com_data);
+            if ($update_res) {
+                Response::setSuccessMsg('编辑成功');
+                Response::success(array());
+            } else {
+                Response::error(-1, '编辑失败!');
+            }
+        } else {
+            //添加公司信息表api_company_info记录
+            $com_data['identity_id'] = $identity_id;//身份id;
+            $com_data['com_name'] = $param['com_name'];//公司名称
+            $com_data['intro'] = $param['intro'];
+            $com_data['industry_id'] = $param['industry_id'];
+            $com_data['logo'] = substr($param['logo'], 0, -1);
+            $com_data['phone'] = $param['phone'];
+            $com_data['address'] = $param['address'];
+            $com_data['add_time'] = date('Y-m-d H:i:s', time());
+            $add_res = D('api_company_info')->add($com_data);
+            if ($add_res) {
+                Response::setSuccessMsg('添加成功');
+                Response::success(array());
+            } else {
+                Response::error(-1, '添加失败!');
+            }
+        }
+
     }
 
 }
